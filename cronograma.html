@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="pf-locked">
 <head>
  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
  <meta name="description" content="Plan de desarrollo de software, estructura del equipo de 14 integrantes y cronograma de 4 semanas más reserva.">
@@ -26,8 +26,10 @@
 @media(max-width:560px){.main{padding:17px 13px 38px}.hero{padding:24px 21px;min-height:0}.hero h1{font-size:27px}.topbar{gap:8px}.top-chip{display:none}.stats{gap:9px;margin-top:13px}.stat{padding:13px}.stat-number{font-size:24px}.section-heading{align-items:flex-start}.section-heading h2{font-size:17px}.small-label{font-size:9px}.diagram{padding:17px 12px}.tree-cols{gap:17px 8px}.tree-item{min-height:120px}.role-grid,.assign-grid,.checklist{grid-template-columns:1fr}.assign-row{grid-template-columns:1fr 1.45fr}.assignment{padding:16px}.policy,.routine{grid-template-columns:1fr 1fr;gap:8px}.policy-item,.routine-item{padding:12px}.roadmap{padding:14px}.roadmap-track{grid-template-columns:repeat(2,minmax(0,1fr))}.roadmap-step{min-height:95px;padding:12px}.focus-card{padding:18px}.focus-head h3{font-size:21px}.focus-badge{font-size:9px}.work-row{grid-template-columns:96px 1fr;gap:8px}.footer{display:block}.toast{bottom:12px;right:12px;left:12px}}
 @media print{body{background:white}.layout{display:block}.sidebar,.topbar,.action-btn,.footer,.toast{display:none!important}.main{max-width:none;padding:0}.hero{background:#29345a!important;color:#fff!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}.panel,.stat,.role-card,.routine-item,.policy-item{break-inside:avoid;box-shadow:none}.focus-card{break-inside:avoid}.roadmap-step{break-inside:avoid}.checklist{break-inside:avoid}.section-heading{margin-top:21px}.assignment{display:none}.main{margin:0}}
 </style>
+<link rel="stylesheet" href="assets/shared.css">
 </head>
 <body>
+<noscript>Activa JavaScript para iniciar sesión en ProjectFlow.</noscript>
 <div class="layout">
  <aside class="sidebar" aria-label="Navegación principal">
   <div class="logo"><span class="logo-mark">P<span style="font-size:14px;opacity:.8">·</span></span><div><div class="logo-title">Project<span style="color:#aaaaff">Flow</span></div><span class="logo-caption">Panel del proyecto</span></div></div>
@@ -53,7 +55,7 @@
  <div class="section-heading"><div><h2>Plan de trabajo por semana</h2><p>Haz clic en cualquier bloque de la ruta para cambiar esta ficha.</p></div><span class="small-label">Detalle interactivo</span></div>
  <section class="panel focus-card" aria-live="polite"><div class="focus-head"><div><div class="focus-eyebrow" id="week-eyebrow">SEMANA 1 · PLAN PRINCIPAL</div><h3 id="week-title">Análisis y planificación</h3><p id="week-objective">Definir con el cliente qué se construirá y establecer las bases antes de programar.</p></div><div class="focus-badge" id="week-status">Diseño</div></div>
  <div class="focus-divider"></div><div class="focus-grid"><div><h4 class="mini-h">Responsabilidades por equipo</h4><div class="worklist" id="week-work"></div></div><div><div class="deliverables"><h4 class="mini-h">Entregables de la semana</h4><ul id="week-deliverables"></ul></div><div class="gate" id="week-gate"><b>Condición para avanzar</b><span id="week-gate-text"></span></div></div></div></section>
- <div class="section-heading"><div><h2>Seguimiento de hitos</h2><p>Marca los objetivos cumplidos. El progreso queda guardado en este navegador.</p></div><span class="small-label" id="progress-count">0 de 4 hitos completados</span></div>
+ <div class="section-heading"><div><h2>Seguimiento de hitos</h2><p>Marca los objetivos cumplidos. El progreso queda guardado para todo el equipo.</p></div><span class="small-label" id="progress-count">0 de 4 hitos completados</span></div>
  <section class="panel progress-panel"><div class="progress-head"><div><h3>Avance del plan principal</h3><p>Cuatro verificaciones obligatorias antes del cierre.</p></div><div class="progress-label" id="progress-percent">0%</div></div><div class="progress-bg"><div class="progress-fill" id="progress-fill"></div></div><div class="checklist">
  <label class="check-item"><input type="checkbox" data-milestone="1"><span><b>Semana 1 · Alcance aprobado</b><small>Requisitos, prototipo y arquitectura confirmados.</small></span></label>
  <label class="check-item"><input type="checkbox" data-milestone="2"><span><b>Semana 2 · Primer flujo operativo</b><small>Frontend + backend + BD conectados.</small></span></label>
@@ -68,19 +70,27 @@
  </main>
 </div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="config.js"></script>
+<script src="assets/vendor/supabase.js"></script>
+<script src="assets/shared.js"></script>
 <script>
-(function(){
+(async function(){
  'use strict';
+ await ProjectFlow.ready();
  const $=(s,p=document)=>p.querySelector(s);
  const $$=(s,p=document)=>Array.from(p.querySelectorAll(s));
  let toastTimeout;
  function notice(text){const el=$('#toast');if(!el)return;el.textContent=text;el.classList.add('show');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>el.classList.remove('show'),2300)}
- function get(key,fallback){try{const v=localStorage.getItem(key);return v===null?fallback:JSON.parse(v)}catch(e){return fallback}}
- function put(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true}catch(e){notice('No se pudo guardar en este navegador');return false}}
+ function get(key,fallback){return ProjectFlow.get(key,fallback)}
+ async function put(key,value){try{await ProjectFlow.set(key,value);return true}catch(e){notice(e.message);return false}}
  function setupTeam(){
   const fields=$$('[data-person]');if(!fields.length)return;
   const saved=get('equipo14.personas',{});
-  fields.forEach(f=>{f.value=saved[f.dataset.person]||'';f.addEventListener('input',()=>{const result={};fields.forEach(x=>{result[x.dataset.person]=x.value.trim()});put('equipo14.personas',result);updateCounter()})});
+  let saveTimer;
+  fields.forEach(f=>{f.value=saved[f.dataset.person]||'';f.addEventListener('input',()=>{
+   ProjectFlow.markDirty('equipo14.personas');clearTimeout(saveTimer);updateCounter();
+   saveTimer=setTimeout(()=>{const result={};fields.forEach(x=>{result[x.dataset.person]=x.value.trim()});put('equipo14.personas',result)},450);
+  })});
   function updateCounter(){const n=fields.filter(f=>f.value.trim()).length;const el=$('#assigned-count');if(el)el.textContent=n+' / 14 asignados'}
   updateCounter();
   $('#export-csv')?.addEventListener('click',()=>{
@@ -89,9 +99,11 @@
    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
    const a=document.createElement('a');a.href=url;a.download='asignacion_equipo_14.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);notice('CSV exportado');
   });
-  $('#clear-assignments')?.addEventListener('click',()=>{
-    if(!confirm('¿Borrar los nombres asignados en este navegador?'))return;
-    fields.forEach(f=>f.value='');put('equipo14.personas',{});updateCounter();notice('Asignaciones limpiadas');
+  $('#clear-assignments')?.addEventListener('click',async()=>{
+    if(!confirm('¿Borrar los nombres asignados para todo el equipo?'))return;
+    clearTimeout(saveTimer);fields.forEach(f=>f.disabled=true);
+    if(await put('equipo14.personas',{})){fields.forEach(f=>f.value='');updateCounter();notice('Asignaciones limpiadas')}
+    fields.forEach(f=>f.disabled=false);
   });
  }
  const weeks=[

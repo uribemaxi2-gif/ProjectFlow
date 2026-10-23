@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="pf-locked">
 <head>
  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
  <meta name="description" content="Plan de desarrollo de software, estructura del equipo de 14 integrantes y cronograma de 4 semanas más reserva.">
@@ -26,8 +26,10 @@
 @media(max-width:560px){.main{padding:17px 13px 38px}.hero{padding:24px 21px;min-height:0}.hero h1{font-size:27px}.topbar{gap:8px}.top-chip{display:none}.stats{gap:9px;margin-top:13px}.stat{padding:13px}.stat-number{font-size:24px}.section-heading{align-items:flex-start}.section-heading h2{font-size:17px}.small-label{font-size:9px}.diagram{padding:17px 12px}.tree-cols{gap:17px 8px}.tree-item{min-height:120px}.role-grid,.assign-grid,.checklist{grid-template-columns:1fr}.assign-row{grid-template-columns:1fr 1.45fr}.assignment{padding:16px}.policy,.routine{grid-template-columns:1fr 1fr;gap:8px}.policy-item,.routine-item{padding:12px}.roadmap{padding:14px}.roadmap-track{grid-template-columns:repeat(2,minmax(0,1fr))}.roadmap-step{min-height:95px;padding:12px}.focus-card{padding:18px}.focus-head h3{font-size:21px}.focus-badge{font-size:9px}.work-row{grid-template-columns:96px 1fr;gap:8px}.footer{display:block}.toast{bottom:12px;right:12px;left:12px}}
 @media print{body{background:white}.layout{display:block}.sidebar,.topbar,.action-btn,.footer,.toast{display:none!important}.main{max-width:none;padding:0}.hero{background:#29345a!important;color:#fff!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}.panel,.stat,.role-card,.routine-item,.policy-item{break-inside:avoid;box-shadow:none}.focus-card{break-inside:avoid}.roadmap-step{break-inside:avoid}.checklist{break-inside:avoid}.section-heading{margin-top:21px}.assignment{display:none}.main{margin:0}}
 </style>
+<link rel="stylesheet" href="assets/shared.css">
 </head>
 <body>
+<noscript>Activa JavaScript para iniciar sesión en ProjectFlow.</noscript>
 <div class="layout">
  <aside class="sidebar" aria-label="Navegación principal">
   <div class="logo"><span class="logo-mark">P<span style="font-size:14px;opacity:.8">·</span></span><div><div class="logo-title">Project<span style="color:#aaaaff">Flow</span></div><span class="logo-caption">Panel del proyecto</span></div></div>
@@ -59,7 +61,7 @@
 <article class="panel role-card" data-tint="orange"><div class="role-head"><span class="role-glyph">⊞</span><div><h3>Apoyo de BD / Backend</h3><p class="role-subtitle">Desarrollo y aseguramiento interno</p></div><span class="role-count">1 persona</span></div><ul><li>Implementa migraciones, datos de prueba y consultas.</li><li>Ayuda en rendimiento y corrección de errores de BD.</li><li>Apoya endpoints del backend cuando haya menos carga de datos.</li></ul></article>
 <article class="panel role-card" data-tint=""><div class="role-head"><span class="role-glyph">⤴</span><div><h3>Representante de Integración</h3><p class="role-subtitle">Desarrollo y aseguramiento interno</p></div><span class="role-count">1 persona</span></div><ul><li>Gestiona integración entre frontend, backend y BD.</li><li>Verifica contratos de API, entornos y versiones integradas.</li><li>Coordina pruebas internas, despliegue y entrega al QA externo.</li></ul></article></section>
  <div class="section-heading"><div><h2>Asignación de integrantes</h2><p>Completa los nombres de tu grupo para tener una distribución definitiva.</p></div><span class="small-label" id="assigned-count">0 / 14 asignados</span></div>
- <section class="panel assignment"><div class="assignment-head"><div><h3>Listado de responsables</h3><p>Los nombres se guardan automáticamente en este navegador.</p></div><div class="actions"><button class="action-btn primary" id="export-csv" type="button">↓ &nbsp; Exportar CSV</button><button class="action-btn" id="clear-assignments" type="button">↺ &nbsp; Limpiar</button></div></div><div class="assign-grid"><div class="assign-row"><label for="person-1">Project Manager</label><input id="person-1" data-person="1" data-role="PM" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
+ <section class="panel assignment"><div class="assignment-head"><div><h3>Listado de responsables</h3><p>Los nombres se guardan automáticamente para todo el equipo.</p></div><div class="actions"><button class="action-btn primary" id="export-csv" type="button">↓ &nbsp; Exportar CSV</button><button class="action-btn" id="clear-assignments" type="button">↺ &nbsp; Limpiar</button></div></div><div class="assign-grid"><div class="assign-row"><label for="person-1">Project Manager</label><input id="person-1" data-person="1" data-role="PM" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
 <div class="assign-row"><label for="person-2">Líder Frontend</label><input id="person-2" data-person="2" data-role="Frontend · líder" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
 <div class="assign-row"><label for="person-3">Frontend 01</label><input id="person-3" data-person="3" data-role="Frontend · dev 1" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
 <div class="assign-row"><label for="person-4">Frontend 02</label><input id="person-4" data-person="4" data-role="Frontend · dev 2" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
@@ -81,19 +83,27 @@
  </main>
 </div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="config.js"></script>
+<script src="assets/vendor/supabase.js"></script>
+<script src="assets/shared.js"></script>
 <script>
-(function(){
+(async function(){
  'use strict';
+ await ProjectFlow.ready();
  const $=(s,p=document)=>p.querySelector(s);
  const $$=(s,p=document)=>Array.from(p.querySelectorAll(s));
  let toastTimeout;
  function notice(text){const el=$('#toast');if(!el)return;el.textContent=text;el.classList.add('show');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>el.classList.remove('show'),2300)}
- function get(key,fallback){try{const v=localStorage.getItem(key);return v===null?fallback:JSON.parse(v)}catch(e){return fallback}}
- function put(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true}catch(e){notice('No se pudo guardar en este navegador');return false}}
+ function get(key,fallback){return ProjectFlow.get(key,fallback)}
+ async function put(key,value){try{await ProjectFlow.set(key,value);return true}catch(e){notice(e.message);return false}}
  function setupTeam(){
   const fields=$$('[data-person]');if(!fields.length)return;
   const saved=get('equipo14.personas',{});
-  fields.forEach(f=>{f.value=saved[f.dataset.person]||'';f.addEventListener('input',()=>{const result={};fields.forEach(x=>{result[x.dataset.person]=x.value.trim()});put('equipo14.personas',result);updateCounter()})});
+  let saveTimer;
+  fields.forEach(f=>{f.value=saved[f.dataset.person]||'';f.addEventListener('input',()=>{
+   ProjectFlow.markDirty('equipo14.personas');clearTimeout(saveTimer);updateCounter();
+   saveTimer=setTimeout(()=>{const result={};fields.forEach(x=>{result[x.dataset.person]=x.value.trim()});put('equipo14.personas',result)},450);
+  })});
   function updateCounter(){const n=fields.filter(f=>f.value.trim()).length;const el=$('#assigned-count');if(el)el.textContent=n+' / 14 asignados'}
   updateCounter();
   $('#export-csv')?.addEventListener('click',()=>{
@@ -102,9 +112,11 @@
    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
    const a=document.createElement('a');a.href=url;a.download='asignacion_equipo_14.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);notice('CSV exportado');
   });
-  $('#clear-assignments')?.addEventListener('click',()=>{
-    if(!confirm('¿Borrar los nombres asignados en este navegador?'))return;
-    fields.forEach(f=>f.value='');put('equipo14.personas',{});updateCounter();notice('Asignaciones limpiadas');
+  $('#clear-assignments')?.addEventListener('click',async()=>{
+    if(!confirm('¿Borrar los nombres asignados para todo el equipo?'))return;
+    clearTimeout(saveTimer);fields.forEach(f=>f.disabled=true);
+    if(await put('equipo14.personas',{})){fields.forEach(f=>f.value='');updateCounter();notice('Asignaciones limpiadas')}
+    fields.forEach(f=>f.disabled=false);
   });
  }
  const weeks=[

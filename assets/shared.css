@@ -1,0 +1,30 @@
+html.pf-locked .layout, html.pf-locked #pf-session, html.pf-locked dialog { display: none !important; }
+#pf-gate { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: #f5f7fb; color: #172033; font-family: system-ui, sans-serif; }
+#pf-gate[hidden] { display: none; }
+.pf-card { width: min(100%, 430px); background: white; border: 1px solid #e5e9f1; border-radius: 20px; padding: 30px; box-shadow: 0 12px 40px #1720330d; }
+.pf-card h1 { font-size: 28px; margin: 0 0 8px; }
+.pf-card p { color: #526078; line-height: 1.6; }
+.pf-card label { display: block; margin: 18px 0 6px; font-size: 14px; font-weight: 650; }
+.pf-card input { display: block; width: 100%; border: 1px solid #acb6c7; border-radius: 9px; padding: 12px; font: inherit; color: #172033; background: white; }
+.pf-card button, #pf-session button { font: inherit; cursor: pointer; border: 1px solid #bfc7db; border-radius: 9px; padding: 10px 14px; background: white; color: #172033; }
+.pf-card button[type=submit] { width: 100%; margin-top: 22px; background: #5556d9; color: white; border-color: #5556d9; }
+.pf-card button:disabled { opacity: .6; cursor: wait; }
+.pf-card input:focus-visible, .pf-card button:focus-visible, #pf-session button:focus-visible { outline: 3px solid #8d9aff; outline-offset: 2px; }
+#pf-message { min-height: 24px; white-space: pre-line; }
+#pf-message[data-error=true] { color: #9f2236; }
+#pf-session { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 20px; padding: 12px 20px; background: white; border-bottom: 1px solid #e5e9f1; font: 13px system-ui, sans-serif; }
+.pf-identity { display: flex; flex-wrap: wrap; gap: 6px 12px; min-width: 0; }
+#pf-email { overflow-wrap: anywhere; }
+.pf-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+#pf-status { max-width: 450px; }
+#pf-status[data-error=true] { color: #9f2236; font-weight: 650; }
+/* Keep navigation reachable on short screens and phones. */
+.sidebar { overflow-y: auto; }
+.sidebar > * { flex-shrink: 0; }
+@media (max-width: 750px) {
+  #pf-session { padding: 12px; }
+  .pf-controls { width: 100%; }
+  .pf-card { padding: 24px; }
+  .sidebar { overflow-y: visible; }
+}
+@media print { #pf-session, #pf-gate { display: none !important; } }
