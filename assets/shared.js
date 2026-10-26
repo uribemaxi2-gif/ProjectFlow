@@ -9,22 +9,23 @@
     const keys = Object.keys(a);
     return keys.length === Object.keys(b).length && keys.every(key => Object.hasOwn(b, key) && equal(a[key], b[key]));
   };
-  let client, cache = {}, unlocked = false, conflict = false, queue = Promise.resolve(), pending = 0;
+  let client, cache = {}, unlocked = false, editor = false, conflict = false, queue = Promise.resolve(), pending = 0;
   const dirty = new Map();
   let generation = 0, completeReady;
   const ready = new Promise(resolve => { completeReady = resolve; });
   const gate = document.createElement('section');
   gate.id = 'pf-gate';
   gate.innerHTML = `<div class="pf-card"><h1>ProjectFlow</h1>
-    <p>Acceso privado para líderes y responsables del proyecto.</p>
+    <p>Consulta el espacio con el enlace. Para agregar o editar datos, entra con una cuenta autorizada.</p>
     <form id="pf-login" hidden>
       <label for="pf-email-input">Correo</label><input id="pf-email-input" type="email" autocomplete="username" required>
       <label for="pf-password">Contraseña</label><input id="pf-password" type="password" autocomplete="current-password" required>
       <button type="submit" id="pf-enter">Entrar</button>
     </form>
-    <p id="pf-message" role="status" aria-live="polite">Comprobando acceso…</p>
+    <p id="pf-message" role="status" aria-live="polite">Cargando datos compartidos…</p>
     <button id="pf-retry" type="button" hidden>Reintentar</button>
-    <p>Si necesitas una cuenta o recuperar el acceso, contacta al responsable del proyecto.</p>
+    <button id="pf-cancel-login" type="button" hidden>Volver a consultar</button>
+    <p>El propietario autoriza las cuentas que pueden editar.</p>
   </div>`;
   document.body.prepend(gate);
   const find = id => document.getElementById(id);
@@ -38,34 +39,55 @@
   }
   function lock(text) {
     unlocked = false;
+    editor = false;
     cache = {};
     document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
     document.documentElement.classList.add('pf-locked');
     gate.hidden = false;
     find('pf-login').hidden = false;
+    find('pf-retry').hidden = false;
+    find('pf-cancel-login').hidden = true;
     message(text, true);
   }
-  function markDirty(key) { dirty.set(key, ++generation); status('Cambios sin guardar'); }
+  function canEdit() { return unlocked && editor; }
+  function applyAccess(root = document) {
+    document.documentElement.classList.toggle('pf-readonly', !canEdit());
+    root.querySelectorAll('[data-pf-field], [data-pf-form] input, [data-pf-form] textarea, [data-pf-form] select').forEach(field => {
+      if (field.matches('select, [type=checkbox], [type=file], [type=radio]')) field.disabled = !canEdit();
+      else field.readOnly = !canEdit();
+      field.setAttribute('aria-readonly', String(!canEdit()));
+    });
+  }
+  function markDirty(key) { if (canEdit()) { dirty.set(key, ++generation); status('Cambios sin guardar'); } }
   function clean(key) { dirty.delete(key); }
+  function normalizeSchedule(items) {
+    if (!Array.isArray(items) || items.length > 500) throw new Error('Agenda no válida.');
+    const ids = new Set();
+    return items.map(item => {
+      if (!item || typeof item.id !== 'string' || !/^[\w-]{1,80}$/.test(item.id) || ids.has(item.id) || typeof item.title !== 'string') throw new Error('Actividad no válida.');
+      ids.add(item.id);
+      return { id: item.id, title: item.title.slice(0, 160), dueDate: /^\d{4}-\d{2}-\d{2}$/.test(item.dueDate || '') ? item.dueDate : '', done: item.done === true };
+    });
+  }
   function errorText(error) {
     if (error?.code === '40001') return 'Otra persona guardó cambios. Conserva lo que escribiste y pulsa Actualizar antes de volver a guardar.';
-    if (error?.code === '42501' || error?.status === 401 || error?.status === 403) return 'Tu cuenta no tiene acceso. Contacta al responsable del proyecto.';
+    if (error?.code === '42501' || error?.status === 401 || error?.status === 403) return 'Tu cuenta no tiene permiso para editar. Pulsa Reintentar para volver a consultar.';
     return 'No se pudo conectar o guardar. Comprueba tu conexión y vuelve a intentarlo. Tus cambios todavía no están compartidos.';
   }
   async function requestState() {
     const { data, error } = await client.rpc('projectflow_get_state');
     if (error) throw error;
-    if (!data || !['leader', 'responsible'].includes(data.role) || !data.data || typeof data.data !== 'object') {
+    if (!data || !['leader', 'responsible', 'viewer'].includes(data.role) || !data.data || typeof data.data !== 'object' || Array.isArray(data.data)) {
       throw new Error('Estado no válido');
     }
     return data;
   }
   function get(key, fallback) {
-    if (!unlocked) throw new Error('Inicia sesión para acceder.');
+    if (!unlocked) throw new Error('Espera a que se carguen los datos.');
     return copy(Object.hasOwn(cache, key) ? cache[key] : fallback);
   }
   function setMany(values) {
-    if (!unlocked) return Promise.reject(new Error('Inicia sesión para guardar.'));
+    if (!canEdit()) return Promise.reject(new Error('Solo las cuentas autorizadas pueden editar.'));
     const snapshot = copy(values), versions = new Map();
     for (const key of Object.keys(snapshot)) {
       if (!KEYS.includes(key)) return Promise.reject(new Error('Sección no válida.'));
@@ -75,7 +97,7 @@
     const task = queue.catch(() => {}).then(async () => {
       try {
         if (conflict) throw { code: '40001' };
-        if (!unlocked) throw { code: '42501' };
+        if (!canEdit()) throw { code: '42501' };
         status('Guardando…');
         const updates = Object.entries(snapshot).map(([key, value]) => ({
           key, expected: Object.hasOwn(cache, key) ? copy(cache[key]) : null, value
@@ -88,7 +110,7 @@
           cache[key] = copy(value);
           if (dirty.get(key) === versions.get(key)) clean(key);
         }
-        status('Guardado para el equipo');
+        status('Guardado compartido');
       } catch (error) {
         if (error?.code === '40001') conflict = true;
         if (error?.code === '42501' || error?.status === 401 || error?.status === 403) lock(errorText(error));
@@ -113,10 +135,10 @@
       anchor.href = url; anchor.download = 'projectflow-datos-anteriores.json';
       document.body.append(anchor); anchor.click(); anchor.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      status('Respaldo descargado. Puedes importarlo desde Datos del proyecto → Ficha del proyecto.');
+      status('Respaldo descargado. Puedes importarlo desde Mi proyecto → Ficha del proyecto.');
     } catch { status('No se pudieron leer los datos anteriores de este navegador.', true); }
   }
-  function sessionBar(user, role) {
+  function sessionBar(user) {
     if (find('pf-session')) return;
     const bar = document.createElement('div');
     bar.id = 'pf-session';
@@ -124,13 +146,27 @@
       <div class="pf-controls"><span id="pf-status" role="status" aria-live="polite">Datos compartidos</span>
       <button type="button" id="pf-refresh">Actualizar</button>
       <button type="button" id="pf-previous" hidden>Descargar datos anteriores</button>
-      <button type="button" id="pf-logout">Salir</button></div>`;
+      <button type="button" id="pf-open-login">Entrar para editar</button>
+      <button type="button" id="pf-logout" hidden>Salir</button></div>`;
     document.body.insertBefore(bar, gate.nextSibling);
-    find('pf-role').textContent = role === 'leader' ? 'Líder' : 'Responsable';
-    find('pf-email').textContent = user.email || '';
+    find('pf-role').textContent = canEdit() ? 'Edición autorizada' : 'Solo lectura';
+    find('pf-email').textContent = user?.email || 'Puedes consultar sin cuenta';
+    find('pf-open-login').hidden = !!user;
+    find('pf-logout').hidden = !user;
+    if (user && !canEdit()) status('Esta cuenta tiene acceso de solo lectura.');
+    find('pf-open-login').addEventListener('click', () => {
+      document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
+      document.documentElement.classList.add('pf-locked');
+      gate.hidden = false;
+      find('pf-login').hidden = false;
+      find('pf-cancel-login').hidden = false;
+      find('pf-retry').hidden = true;
+      message('Entra con la cuenta que el propietario autorizó para editar.');
+      find('pf-email-input').focus();
+    });
     find('pf-refresh').addEventListener('click', () => {
       if (pending) { status('Espera a que termine el guardado antes de actualizar.'); return; }
-      if (dirty.size && !confirm('Hay cambios sin guardar. ¿Descartarlos y cargar los datos del equipo?')) return;
+      if (dirty.size && !confirm('Hay cambios sin guardar. ¿Descartarlos y cargar los datos compartidos?')) return;
       dirty.clear(); location.reload();
     });
     find('pf-logout').addEventListener('click', async () => {
@@ -140,7 +176,7 @@
       if (error) { status('No se pudo cerrar la sesión. Vuelve a intentarlo.', true); return; }
       dirty.clear(); location.reload();
     });
-    try { find('pf-previous').hidden = !KEYS.some(key => localStorage.getItem(key)); } catch { /* optional migration */ }
+    try { find('pf-previous').hidden = !canEdit() || !KEYS.some(key => localStorage.getItem(key)); } catch { /* optional migration */ }
     find('pf-previous').addEventListener('click', downloadPreviousData);
   }
   async function unlock(session) {
@@ -149,7 +185,9 @@
     if (find('pf-session')) { dirty.clear(); location.reload(); return; }
     cache = copy(state.data);
     unlocked = true;
-    sessionBar(session.user, state.role);
+    editor = ['leader', 'responsible'].includes(state.role);
+    applyAccess();
+    sessionBar(session?.user);
     gate.hidden = true;
     find('pf-password').value = '';
     document.documentElement.classList.remove('pf-locked');
@@ -157,20 +195,20 @@
   }
   async function restore() {
     find('pf-retry').hidden = true;
-    message('Comprobando acceso…');
+    message('Cargando datos compartidos…');
     try {
       const { data, error } = await client.auth.getSession();
       if (error) throw error;
-      if (data.session) await unlock(data.session);
-      else { find('pf-login').hidden = false; message('Ingresa con tu cuenta autorizada.'); }
+      await unlock(data.session);
     } catch (error) {
       find('pf-login').hidden = false;
       find('pf-retry').hidden = false;
-      message(errorText(error), true);
+      const denied = error?.code === '42501' || error?.status === 401 || error?.status === 403;
+      message(denied ? 'La consulta con el enlace todavía no está disponible. Puedes entrar con una cuenta autorizada.' : 'No se pudieron cargar los datos. Comprueba tu conexión y pulsa Reintentar.', true);
     }
   }
   window.ProjectFlow = Object.freeze({
-    ready: () => ready, get, set: (key, value) => setMany({ [key]: value }), setMany, markDirty, clean
+    ready: () => ready, get, set: (key, value) => setMany({ [key]: value }), setMany, markDirty, clean, canEdit, applyAccess, normalizeSchedule
   });
   window.addEventListener('beforeunload', event => {
     if (unlocked && (dirty.size || pending)) { event.preventDefault(); event.returnValue = ''; }
@@ -190,6 +228,11 @@
     finally { find('pf-enter').disabled = false; }
   });
   find('pf-retry').addEventListener('click', restore);
+  find('pf-cancel-login').addEventListener('click', () => {
+    gate.hidden = true;
+    find('pf-password').value = '';
+    document.documentElement.classList.remove('pf-locked');
+  });
   try {
     const config = window.PROJECTFLOW_CONFIG || {};
     const url = new URL(config.supabaseUrl);
@@ -201,14 +244,25 @@
     if (url.protocol !== 'https:' || !publicKey || !window.supabase) throw new Error('Configuración incompleta');
     client = window.supabase.createClient(url.origin, key);
     client.auth.onAuthStateChange((event, session) => {
-      if (unlocked && (event === 'SIGNED_OUT' || !session)) lock('La sesión terminó. Vuelve a iniciar sesión.');
+      if (canEdit() && (event === 'SIGNED_OUT' || !session)) lock('La sesión terminó. Pulsa Reintentar para consultar o vuelve a entrar para editar.');
     });
     restore();
     setInterval(async () => {
       if (!unlocked || pending || document.hidden) return;
       try {
         const state = await requestState();
-        if (!equal(state.data, cache)) status('Hay cambios del equipo. Pulsa Actualizar para verlos.');
+        if (canEdit() !== ['leader', 'responsible'].includes(state.role)) {
+          lock('Tus permisos cambiaron. Pulsa Reintentar para cargar el acceso actual.');
+          return;
+        }
+        if (!equal(state.data, cache)) {
+          if (canEdit()) status('Hay cambios compartidos. Pulsa Actualizar para verlos.');
+          else {
+            cache = copy(state.data);
+            document.dispatchEvent(new Event('projectflow:updated'));
+            status('Datos actualizados');
+          }
+        }
       } catch (error) {
         if (error?.code === '42501' || error?.status === 401 || error?.status === 403) lock(errorText(error));
         else status('No se pudo comprobar si hay cambios. Revisa tu conexión.', true);

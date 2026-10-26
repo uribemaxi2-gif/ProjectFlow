@@ -1,4 +1,6 @@
 html.pf-locked .layout, html.pf-locked #pf-session, html.pf-locked dialog { display: none !important; }
+html.pf-readonly [data-pf-edit] { display: none !important; }
+html.pf-readonly [data-pf-field], html.pf-readonly [data-pf-form] input, html.pf-readonly [data-pf-form] textarea, html.pf-readonly [data-pf-form] select { color: #26334d; background: #f5f7fb; opacity: 1; }
 #pf-gate { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: #f5f7fb; color: #172033; font-family: system-ui, sans-serif; }
 #pf-gate[hidden] { display: none; }
 .pf-card { width: min(100%, 430px); background: white; border: 1px solid #e5e9f1; border-radius: 20px; padding: 30px; box-shadow: 0 12px 40px #1720330d; }

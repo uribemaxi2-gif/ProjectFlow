@@ -1,20 +1,24 @@
 # ProjectFlow
 
-Organización del equipo, cronograma y registros del proyecto. Las tres páginas
-comparten datos mediante Supabase y requieren una cuenta autorizada como líder
-o responsable. Tener el enlace no da acceso a los registros.
+Espacio personal con agenda por fechas, plan semanal y ficha del proyecto.
+Cualquier persona con el enlace puede consultar los datos. Solo el propietario
+y las cuentas autorizadas pueden agregar, editar, importar o eliminar información.
 
-- `index.html`: integrantes y roles.
-- `cronograma.html`: semanas e hitos compartidos.
-- `proyecto.html`: ficha, solicitudes, revisiones, acuerdos y respaldos.
+- `index.html`: actividades personales con fecha y estado de avance.
+- `cronograma.html`: plan de cuatro semanas más una de reserva, con hitos compartidos.
+- `proyecto.html`: ficha, solicitudes y tareas, revisiones, acuerdos, notas y respaldos.
 
-Lee [la guía de configuración y uso](SETUP-COMPARTIDO.md) para autorizar cuentas,
-recuperar datos de la versión anterior y publicar en GitHub Pages.
+Las fechas y actividades sustituyen al equipo fijo de 14 personas. Las asignaciones
+anteriores se conservan y siguen incluidas en los respaldos.
+
+Lee [la guía de configuración y uso](SETUP-COMPARTIDO.md). Para actualizar una
+instalación privada existente, ejecuta [supabase/public-read.sql](supabase/public-read.sql)
+en el SQL Editor de Supabase. Publicar los archivos HTML no cambia esos permisos.
 
 Para desarrollo:
 
 ```sh
-npm ci --ignore-scripts
+npm ci --cache /tmp/projectflow-npm --ignore-scripts
 python3 -m http.server 8000 --bind 127.0.0.1
 ```
 
@@ -29,6 +33,8 @@ npm test
 npm run test:browser
 ```
 
-Las pruebas de permisos ejecutan el SQL en PostgreSQL mediante PGlite. Las pruebas
-del navegador necesitan Python con Playwright y Chromium en `/usr/bin/chromium`;
-simulan la API de Supabase y no envían correo ni modifican el proyecto real.
+Las pruebas de permisos ejecutan el SQL en PostgreSQL mediante PGlite, incluyendo
+la actualización desde la instalación privada. Las pruebas de navegador necesitan
+Python con Playwright y Chromium en `/usr/bin/chromium`; simulan Supabase y no
+modifican el proyecto real. Cubren lectura pública, edición autorizada, agenda,
+fechas, actualización automática, conflictos, respaldos y acceso móvil.

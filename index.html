@@ -2,8 +2,8 @@
 <html lang="es" class="pf-locked">
 <head>
  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
- <meta name="description" content="Plan de desarrollo de software, estructura del equipo de 14 integrantes y cronograma de 4 semanas más reserva.">
- <title>Equipo y roles | Plan de proyecto</title>
+ <meta name="description" content="Actividades personales con fechas, plan semanal y seguimiento compartido.">
+ <title>Mi agenda — ProjectFlow</title>
  <style>
 :root{--navy:#151c32;--navy2:#242e4e;--ink:#172033;--muted:#66748a;--canvas:#f5f7fb;--line:#e5e9f1;--white:#fff;--accent:#5b5df0;--accent-weak:#eeedff;--green:#178b75;--green-bg:#def7ee;--blue:#377bd8;--blue-bg:#e5f0ff;--orange:#d98236;--orange-bg:#fff1df;--purple:#8557bb;--purple-bg:#f4eafd;--shadow:0 10px 38px rgba(27,40,71,.065)}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:var(--ink);background:var(--canvas);line-height:1.48}button,input{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid #92a0ff;outline-offset:2px}button:disabled{opacity:.6;cursor:not-allowed}svg{display:block}
@@ -27,125 +27,41 @@
 @media print{body{background:white}.layout{display:block}.sidebar,.topbar,.action-btn,.footer,.toast{display:none!important}.main{max-width:none;padding:0}.hero{background:#29345a!important;color:#fff!important;print-color-adjust:exact;-webkit-print-color-adjust:exact}.panel,.stat,.role-card,.routine-item,.policy-item{break-inside:avoid;box-shadow:none}.focus-card{break-inside:avoid}.roadmap-step{break-inside:avoid}.checklist{break-inside:avoid}.section-heading{margin-top:21px}.assignment{display:none}.main{margin:0}}
 </style>
 <link rel="stylesheet" href="assets/shared.css">
+<link rel="stylesheet" href="assets/agenda.css">
 </head>
 <body>
-<noscript>Activa JavaScript para iniciar sesión en ProjectFlow.</noscript>
+<noscript>Activa JavaScript para consultar ProjectFlow.</noscript>
 <div class="layout">
  <aside class="sidebar" aria-label="Navegación principal">
-  <div class="logo"><span class="logo-mark">P<span style="font-size:14px;opacity:.8">·</span></span><div><div class="logo-title">Project<span style="color:#aaaaff">Flow</span></div><span class="logo-caption">Panel del proyecto</span></div></div>
-  <nav aria-label="Páginas del proyecto"><p class="side-label">Espacio de trabajo</p><div class="side-nav"><a class="side-link active" href="index.html" aria-current="page"><span class="side-icon">▦</span> Equipo y roles</a>
-       <a class="side-link " href="cronograma.html" aria-current="false"><span class="side-icon">◷</span> Plan de 4 semanas</a>
-       <a class="side-link" href="proyecto.html" aria-current="false"><span class="side-icon">▤</span> Datos del proyecto</a></div></nav>
-  <div class="side-note"><div class="side-note-tag"><span class="tiny-dot"></span> Plan de ejecución</div><strong>4 + 1 semanas</strong><p>Cuatro semanas de desarrollo y entrega, con una quinta de reserva para imprevistos.</p></div>
-  <div class="sidebar-footer">Proyecto para cliente real · Modelo editable</div>
+  <div class="logo"><span class="logo-mark">P<span style="font-size:14px;opacity:.8">·</span></span><div><div class="logo-title">Project<span style="color:#aaaaff">Flow</span></div><span class="logo-caption">Mi espacio personal</span></div></div>
+  <nav aria-label="Páginas del proyecto"><p class="side-label">Mi espacio</p><div class="side-nav">
+   <a class="side-link active" href="index.html" aria-current="page"><span class="side-icon">▦</span> Mi agenda</a>
+   <a class="side-link" href="cronograma.html"><span class="side-icon">◷</span> Plan semanal</a>
+   <a class="side-link" href="proyecto.html"><span class="side-icon">▤</span> Mi proyecto</a>
+  </div></nav>
+  <div class="side-note"><div class="side-note-tag"><span class="tiny-dot"></span> Actividades y fechas</div><strong>A tu ritmo</strong><p>Define qué quieres hacer y cuándo. Usa el plan semanal para avanzar y la ficha para guardar tus notas.</p></div>
+  <div class="sidebar-footer">Mi espacio · Agenda y seguimiento</div>
  </aside>
  <main class="main">
-  <div class="topbar"><div class="crumb">Plan del proyecto &nbsp; / &nbsp; <b>Equipo y roles</b></div><div class="top-right"><span class="top-chip">● &nbsp; Equipo de 14 personas</span><span class="avatar-mark">14</span></div></div>
-  
- <section class="hero"><span class="eyebrow">01 / Organización del equipo</span><h1>Un equipo, roles claros.<br>Una entrega en común.</h1><p>Modelo de organización para desarrollar una aplicación web o móvil para un cliente real en cuatro semanas, con responsabilidades definidas para cada integrante.</p><div class="hero-flags"><span class="hero-flag">14 integrantes</span><span class="hero-flag">Cliente real</span><span class="hero-flag">QA externo</span></div></section>
- <section class="stats" aria-label="Datos del equipo"><div class="stat"><div class="stat-top"><span class="stat-sub">Integrantes totales</span><span class="symbol">♙</span></div><span class="stat-number">14</span><div class="stat-sub">Todos con rol definido</div></div><div class="stat"><div class="stat-top"><span class="stat-sub">Frontend</span><span class="symbol">▦</span></div><span class="stat-number">5</span><div class="stat-sub">1 líder + 4 desarrolladores</div></div><div class="stat"><div class="stat-top"><span class="stat-sub">Backend</span><span class="symbol">⌘</span></div><span class="stat-number">5</span><div class="stat-sub">1 líder + 4 desarrolladores</div></div><div class="stat"><div class="stat-top"><span class="stat-sub">Especialistas</span><span class="symbol">◎</span></div><span class="stat-number">4</span><div class="stat-sub">PM + BD (2) + Integración</div></div></section>
- <div class="section-heading"><div><h2>Estructura de coordinación</h2><p>Relaciones de trabajo y responsables por área.</p></div><span class="small-label">Organigrama propuesto</span></div>
- <section class="panel diagram" aria-label="Organigrama del equipo"><div class="pm-node"><span class="node-kicker">Coordinación general</span><strong>Project Manager</strong><p>Cliente · prioridades · seguimiento</p></div><div class="tree-stem"></div><div class="tree-bar"></div><div class="tree-cols">
- <div class="tree-item c-blue"><span class="tree-icon">▦</span><h3>Frontend</h3><p>Líder + 4 desarrolladores</p><span class="count">5 personas</span></div>
- <div class="tree-item c-green"><span class="tree-icon">⌘</span><h3>Backend</h3><p>Líder + 4 desarrolladores</p><span class="count">5 personas</span></div>
- <div class="tree-item c-orange"><span class="tree-icon">◫</span><h3>Base de Datos</h3><p>Responsable + apoyo</p><span class="count">2 personas</span></div>
- <div class="tree-item c-purple"><span class="tree-icon">⤴</span><h3>Integración</h3><p>Integración, despliegue y QA externo</p><span class="count">1 persona</span></div></div>
- <div class="diagram-foot"><span class="legend-dot">i</span><div><b>El PM coordina, pero no centraliza las decisiones técnicas.</b> Los líderes de frontend y backend lideran su implementación. BD colabora con backend e integración conecta todo el sistema. El equipo QA es externo y no forma parte de los 14.</div></div></section>
- <div class="section-heading"><div><h2>Responsabilidades por rol</h2><p>Qué debe hacer cada puesto durante el proyecto.</p></div><button class="action-btn" type="button" data-print>⎙ &nbsp; Imprimir</button></div>
- <section class="role-grid" aria-label="Descripción de roles"><article class="panel role-card" data-tint=""><div class="role-head"><span class="role-glyph">◈</span><div><h3>Project Manager (PM)</h3><p class="role-subtitle">Coordinación</p></div><span class="role-count">1 persona</span></div><ul><li>Actúa como contacto principal con el cliente y recoge requisitos.</li><li>Prioriza el MVP, asigna tareas y verifica fechas y bloqueos.</li><li>Coordina demostraciones, decisiones y entrega final.</li></ul></article>
-<article class="panel role-card" data-tint="blue"><div class="role-head"><span class="role-glyph">▤</span><div><h3>Líder de Frontend</h3><p class="role-subtitle">Desarrollo y aseguramiento interno</p></div><span class="role-count">1 persona</span></div><ul><li>Define estructura y criterios de la interfaz.</li><li>Distribuye el trabajo entre los cuatro desarrolladores.</li><li>Revisa Pull Requests y calidad visual/accesibilidad.</li></ul></article>
-<article class="panel role-card" data-tint="blue"><div class="role-head"><span class="role-glyph">▦</span><div><h3>Desarrolladores Frontend</h3><p class="role-subtitle">Desarrollo y aseguramiento interno</p></div><span class="role-count">4 personas</span></div><ul><li>Construyen pantallas, formularios, componentes y navegación.</li><li>Consumen las API acordadas con backend.</li><li>Prueban su código, estados de error y diseño responsive.</li></ul></article>
-<article class="panel role-card" data-tint="green"><div class="role-head"><span class="role-glyph">⌘</span><div><h3>Líder de Backend</h3><p class="role-subtitle">Desarrollo y aseguramiento interno</p></div><span class="role-count">1 persona</span></div><ul><li>Diseña la arquitectura del servidor y los contratos de API.</li><li>Divide el trabajo de los cuatro desarrolladores.</li><li>Revisa lógica, seguridad y calidad del código.</li></ul></article>
-<article class="panel role-card" data-tint="green"><div class="role-head"><span class="role-glyph">⌁</span><div><h3>Desarrolladores Backend</h3><p class="role-subtitle">Desarrollo y aseguramiento interno</p></div><span class="role-count">4 personas</span></div><ul><li>Crean endpoints, validaciones y lógica de negocio.</li><li>Implementan autenticación y permisos cuando corresponda.</li><li>Escriben pruebas de los servicios e integran la BD.</li></ul></article>
-<article class="panel role-card" data-tint="orange"><div class="role-head"><span class="role-glyph">◫</span><div><h3>Responsable de Base de Datos</h3><p class="role-subtitle">Desarrollo y aseguramiento interno</p></div><span class="role-count">1 persona</span></div><ul><li>Diseña el MER, modelo relacional y restricciones.</li><li>Supervisa migraciones, integridad y acceso a datos.</li><li>Coordina los cambios del esquema con el líder backend.</li></ul></article>
-<article class="panel role-card" data-tint="orange"><div class="role-head"><span class="role-glyph">⊞</span><div><h3>Apoyo de BD / Backend</h3><p class="role-subtitle">Desarrollo y aseguramiento interno</p></div><span class="role-count">1 persona</span></div><ul><li>Implementa migraciones, datos de prueba y consultas.</li><li>Ayuda en rendimiento y corrección de errores de BD.</li><li>Apoya endpoints del backend cuando haya menos carga de datos.</li></ul></article>
-<article class="panel role-card" data-tint=""><div class="role-head"><span class="role-glyph">⤴</span><div><h3>Representante de Integración</h3><p class="role-subtitle">Desarrollo y aseguramiento interno</p></div><span class="role-count">1 persona</span></div><ul><li>Gestiona integración entre frontend, backend y BD.</li><li>Verifica contratos de API, entornos y versiones integradas.</li><li>Coordina pruebas internas, despliegue y entrega al QA externo.</li></ul></article></section>
- <div class="section-heading"><div><h2>Asignación de integrantes</h2><p>Completa los nombres de tu grupo para tener una distribución definitiva.</p></div><span class="small-label" id="assigned-count">0 / 14 asignados</span></div>
- <section class="panel assignment"><div class="assignment-head"><div><h3>Listado de responsables</h3><p>Los nombres se guardan automáticamente para todo el equipo.</p></div><div class="actions"><button class="action-btn primary" id="export-csv" type="button">↓ &nbsp; Exportar CSV</button><button class="action-btn" id="clear-assignments" type="button">↺ &nbsp; Limpiar</button></div></div><div class="assign-grid"><div class="assign-row"><label for="person-1">Project Manager</label><input id="person-1" data-person="1" data-role="PM" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
-<div class="assign-row"><label for="person-2">Líder Frontend</label><input id="person-2" data-person="2" data-role="Frontend · líder" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
-<div class="assign-row"><label for="person-3">Frontend 01</label><input id="person-3" data-person="3" data-role="Frontend · dev 1" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
-<div class="assign-row"><label for="person-4">Frontend 02</label><input id="person-4" data-person="4" data-role="Frontend · dev 2" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
-<div class="assign-row"><label for="person-5">Frontend 03</label><input id="person-5" data-person="5" data-role="Frontend · dev 3" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
-<div class="assign-row"><label for="person-6">Frontend 04</label><input id="person-6" data-person="6" data-role="Frontend · dev 4" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
-<div class="assign-row"><label for="person-7">Líder Backend</label><input id="person-7" data-person="7" data-role="Backend · líder" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
-<div class="assign-row"><label for="person-8">Backend 01</label><input id="person-8" data-person="8" data-role="Backend · dev 1" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
-<div class="assign-row"><label for="person-9">Backend 02</label><input id="person-9" data-person="9" data-role="Backend · dev 2" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
-<div class="assign-row"><label for="person-10">Backend 03</label><input id="person-10" data-person="10" data-role="Backend · dev 3" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
-<div class="assign-row"><label for="person-11">Backend 04</label><input id="person-11" data-person="11" data-role="Backend · dev 4" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
-<div class="assign-row"><label for="person-12">Responsable BD</label><input id="person-12" data-person="12" data-role="BD · responsable" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
-<div class="assign-row"><label for="person-13">Apoyo BD / Backend</label><input id="person-13" data-person="13" data-role="BD · apoyo" type="text" placeholder="Nombre y apellido" autocomplete="off"></div>
-<div class="assign-row"><label for="person-14">Representante Integración</label><input id="person-14" data-person="14" data-role="Integración" type="text" placeholder="Nombre y apellido" autocomplete="off"></div></div><div class="assignment-foot">Si la BD requiere menos trabajo, el puesto “Apoyo BD / Backend” puede asumir tareas de backend sin cambiar la estructura de 14 personas.</div></section>
- <div class="notice"><span aria-hidden="true">⚑</span><div><strong>QA externo: cómo trabajar con él</strong><p>El grupo externo realiza QA formal. Sin embargo, cada desarrollador prueba sus cambios, cada líder revisa el código y el representante de integración valida los flujos antes de enviarlos a QA. No se debe esperar al final para detectar fallas.</p></div></div>
- <div class="section-heading"><div><h2>Cuatro acuerdos para trabajar mejor</h2><p>Reglas mínimas recomendadas para un proyecto corto.</p></div></div>
- <section class="policy"><div class="policy-item"><span class="policy-num">01 / VISIBILIDAD</span><strong>Tablero compartido</strong><p>Una tarea, una persona responsable y una fecha de término.</p></div><div class="policy-item"><span class="policy-num">02 / CALIDAD</span><strong>Revisión por PR</strong><p>Los cambios se revisan antes de fusionarlos a la rama principal.</p></div><div class="policy-item"><span class="policy-num">03 / COORDINACIÓN</span><strong>Reuniones breves</strong><p>Informar avance, bloqueos y lo siguiente por hacer.</p></div><div class="policy-item"><span class="policy-num">04 / ALCANCE</span><strong>MVP primero</strong><p>Entregar pocas funcionalidades completas antes que muchas a medias.</p></div></section>
-
-  <div class="footer"><span>Documento orientativo · Adecuar tareas al alcance real aprobado por el cliente.</span><a href="cronograma.html">Ver cronograma →</a></div>
+  <header class="topbar"><div class="crumb">Mi espacio &nbsp; / &nbsp; <b>Mi agenda</b></div><span class="top-chip">Fechas personales</span></header>
+  <section class="hero"><span class="eyebrow">01 / Mi agenda</span><h1>Tu proyecto, a tu ritmo.</h1><p>Organiza tus actividades por fecha y marca lo que ya terminaste. Tú y las personas que autorices pueden editar; todos pueden consultar el avance con el enlace.</p></section>
+  <section class="agenda-stats" aria-label="Resumen de actividades">
+   <div class="panel"><span>Actividades</span><strong id="agenda-total">0</strong></div>
+   <div class="panel"><span>Con fecha</span><strong id="agenda-dated">0</strong></div>
+   <div class="panel"><span>Completadas</span><strong id="agenda-done">0</strong></div>
+  </section>
+  <section class="panel agenda-panel">
+   <div class="section-heading"><div><h2>Mis actividades y fechas</h2><p>Cambia los ejemplos por tus propias actividades. Los cambios se guardan automáticamente.</p></div><div class="actions"><button class="action-btn" type="button" id="export-csv">Exportar CSV</button><button class="action-btn primary" data-pf-edit id="agenda-add" type="button">+ Agregar actividad</button></div></div>
+   <div id="agenda-list" aria-label="Actividades personales"></div>
+   <p id="agenda-empty" hidden>No hay actividades registradas.</p>
+  </section>
+  <details class="panel agenda-legacy" id="previous-assignments" hidden><summary>Datos conservados del proyecto anterior</summary><p>Las asignaciones anteriores siguen guardadas y se incluyen en los respaldos.</p><ul id="previous-assignment-list"></ul></details>
+  <footer class="footer">ProjectFlow · Mi espacio personal · Consulta con enlace y edición autorizada</footer>
  </main>
 </div>
-<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div role="status" aria-live="polite" id="toast" class="toast"></div>
 <script src="config.js"></script>
 <script src="assets/vendor/supabase.js"></script>
 <script src="assets/shared.js"></script>
-<script>
-(async function(){
- 'use strict';
- await ProjectFlow.ready();
- const $=(s,p=document)=>p.querySelector(s);
- const $$=(s,p=document)=>Array.from(p.querySelectorAll(s));
- let toastTimeout;
- function notice(text){const el=$('#toast');if(!el)return;el.textContent=text;el.classList.add('show');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>el.classList.remove('show'),2300)}
- function get(key,fallback){return ProjectFlow.get(key,fallback)}
- async function put(key,value){try{await ProjectFlow.set(key,value);return true}catch(e){notice(e.message);return false}}
- function setupTeam(){
-  const fields=$$('[data-person]');if(!fields.length)return;
-  const saved=get('equipo14.personas',{});
-  let saveTimer;
-  fields.forEach(f=>{f.value=saved[f.dataset.person]||'';f.addEventListener('input',()=>{
-   ProjectFlow.markDirty('equipo14.personas');clearTimeout(saveTimer);updateCounter();
-   saveTimer=setTimeout(()=>{const result={};fields.forEach(x=>{result[x.dataset.person]=x.value.trim()});put('equipo14.personas',result)},450);
-  })});
-  function updateCounter(){const n=fields.filter(f=>f.value.trim()).length;const el=$('#assigned-count');if(el)el.textContent=n+' / 14 asignados'}
-  updateCounter();
-  $('#export-csv')?.addEventListener('click',()=>{
-   const rows=[['Rol','Integrante'],...fields.map(f=>[f.dataset.role,f.value.trim()])];
-   const csv='\ufeff'+rows.map(r=>r.map(v=>'"'+v.replace(/"/g,'""')+'"').join(';')).join('\r\n');
-   const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
-   const a=document.createElement('a');a.href=url;a.download='asignacion_equipo_14.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);notice('CSV exportado');
-  });
-  $('#clear-assignments')?.addEventListener('click',async()=>{
-    if(!confirm('¿Borrar los nombres asignados para todo el equipo?'))return;
-    clearTimeout(saveTimer);fields.forEach(f=>f.disabled=true);
-    if(await put('equipo14.personas',{})){fields.forEach(f=>f.value='');updateCounter();notice('Asignaciones limpiadas')}
-    fields.forEach(f=>f.disabled=false);
-  });
- }
- const weeks=[
-  {name:'Análisis y planificación',short:'Análisis y diseño',objective:'Definir con el cliente qué se construirá y establecer las bases antes de programar.',status:'Diseño',work:[['PM','Reunión con el cliente; levantar requisitos, fijar el MVP y asignar tareas y fechas.'],['Frontend (5)','Diseñar flujo de navegación, wireframes, prototipo y estructura de componentes.'],['Backend (5)','Definir arquitectura, reglas de negocio, API y criterios de autenticación si aplica.'],['Base de Datos (2)','Crear MER, modelo relacional, restricciones y primeras migraciones.'],['Integración (1)','Preparar GitHub, reglas de ramas, entornos y contratos de API.']],deliverables:['Requisitos y alcance MVP acordados con el cliente.','Prototipo y recorrido principal de usuario.','MER/esquema inicial y endpoints documentados.','Repositorio, tablero y responsables asignados.'],gate:'Al finalizar: el cliente aprueba alcance y diseño; el equipo puede comenzar desarrollo.'},
-  {name:'Desarrollo principal',short:'Desarrollo',objective:'Construir primero las funcionalidades fundamentales, con integración temprana.',status:'Construcción',work:[['PM','Verificar tareas, plazos, dependencias y bloqueos.'],['Frontend (5)','Implementar páginas, formularios, componentes y navegación.'],['Backend (5)','Crear endpoints, validaciones, servicios y reglas de negocio.'],['Base de Datos (2)','Implementar tablas, migraciones, consultas y datos de prueba.'],['Integración (1)','Conectar el primer flujo real frontend–API–BD y ejecutar pruebas de humo.']],deliverables:['Primer flujo funcional completo, de pantalla a base de datos.','Funcionalidades principales en construcción y demostrables.','Entorno compartido y conexión validada.','Demostración interna y avance al cliente, si es posible.'],gate:'Al finalizar: existe un recorrido real funcionando, aunque el MVP todavía no esté completo.'},
-  {name:'Integración y pruebas',short:'Integración',objective:'Completar el MVP, verificar los flujos principales y enviar una versión al QA externo.',status:'MVP listo',work:[['PM','Revisar alcance comprometido y coordinar recepción con el equipo QA externo.'],['Frontend (5)','Completar interfaces, estados de error y usabilidad.'],['Backend (5)','Cerrar funcionalidades, validaciones y pruebas de endpoints.'],['Base de Datos (2)','Comprobar integridad, migraciones y consistencia de consultas.'],['Integración (1)','Ejecutar pruebas de extremo a extremo, armar versión y entregar a QA externo.']],deliverables:['MVP con funcionalidades comprometidas integradas.','Pruebas internas de los recorridos principales.','Versión de pruebas disponible para QA externo.','Registro de bugs y correcciones priorizadas.'],gate:'Al finalizar: congelar nuevas funcionalidades; desde aquí solo correcciones y estabilidad.'},
-  {name:'Estabilización y entrega',short:'Entrega',objective:'Corregir fallas, validar con el cliente y entregar una versión estable.',status:'Entrega',work:[['PM','Coordinar devoluciones de QA, aceptación del cliente y cierre.'],['Frontend (5)','Corregir fallas visuales, de interacción y accesibilidad.'],['Backend (5)','Resolver errores funcionales, validación, seguridad y API.'],['Base de Datos (2)','Revisar integridad, respaldos y migraciones de producción.'],['Integración (1)','Preparar despliegue, validar entorno final y ejecutar verificación integral.']],deliverables:['Aplicación funcionando en el entorno acordado.','Errores críticos y bloqueantes resueltos.','Documentación de uso y técnica mínima.','Demostración final y aceptación del cliente.'],gate:'Al finalizar: la aplicación queda entregada si supera QA y validación del cliente.'},
-  {name:'Semana de contingencia',short:'Reserva',objective:'Margen reservado para incidentes o ajustes indispensables. No es una quinta semana de nuevas funciones.',status:'Reserva',reserve:true,work:[['PM','Priorizar bloqueos reales, comunicar fechas y cerrar pendientes de aceptación.'],['Frontend (5)','Solucionar únicamente incidencias relevantes de interfaz.'],['Backend (5)','Atender fallas detectadas después de la revisión final.'],['Base de Datos (2)','Resolver problemas de datos, migración o respaldo, si aparecen.'],['Integración (1)','Revalidar correcciones, despliegue y entrega con QA y cliente.']],deliverables:['Errores pendientes de severidad alta corregidos, si los hay.','Retesteo y verificación final.','Documentación o capacitación adicional si no surgen fallas.','Cierre administrativo del proyecto.'],gate:'No planificar funcionalidades nuevas en esta semana: solo contingencias y cierre.'}
- ];
- function setupPlan(){
-  const buttons=$$('[data-week]');if(!buttons.length)return;
-  function showWeek(i){const w=weeks[i];if(!w)return;
-   buttons.forEach(b=>{const active=Number(b.dataset.week)===i;b.classList.toggle('selected',active);b.setAttribute('aria-pressed',active?'true':'false')});
-   $('#week-eyebrow').textContent='SEMANA '+(i+1)+(w.reserve?' · RESERVA':' · PLAN PRINCIPAL');
-   $('#week-title').textContent=w.name;
-   $('#week-objective').textContent=w.objective;
-   const badge=$('#week-status');badge.textContent=w.status;badge.classList.toggle('reserve',!!w.reserve);
-   $('#week-work').replaceChildren(...w.work.map(([name,desc])=>{const div=document.createElement('div');div.className='work-row';const b=document.createElement('b');b.textContent=name;const p=document.createElement('p');p.textContent=desc;div.append(b,p);return div}));
-   $('#week-deliverables').replaceChildren(...w.deliverables.map(text=>{const li=document.createElement('li');li.textContent=text;return li}));
-   const gate=$('#week-gate');gate.classList.toggle('reserve',!!w.reserve);$('#week-gate-text').textContent=w.gate;
-  }
-  buttons.forEach(b=>b.addEventListener('click',()=>showWeek(Number(b.dataset.week))));showWeek(0);
-  const checks=$$('[data-milestone]'),stored=get('equipo14.hitos',{});
-  checks.forEach(c=>{c.checked=!!stored[c.dataset.milestone];c.addEventListener('change',()=>{const obj={};checks.forEach(x=>obj[x.dataset.milestone]=x.checked);put('equipo14.hitos',obj);updateProgress()})});
-  function updateProgress(){const n=checks.filter(c=>c.checked).length;$('#progress-percent').textContent=Math.round(n*100/checks.length)+'%';$('#progress-count').textContent=n+' de '+checks.length+' hitos completados';$('#progress-fill').style.width=(n*100/checks.length)+'%'}
-  updateProgress();
- }
- setupTeam();setupPlan();
- $$('[data-print]').forEach(b=>b.addEventListener('click',()=>window.print()));
-})();
-</script>
+<script src="assets/agenda.js"></script>
 </body></html>

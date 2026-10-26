@@ -51,19 +51,20 @@ async function save(updates) {
 const denied = operation => assert.rejects(operation, error => error.code === '42501');
 const update = (key, expected, value) => ({ key, expected, value });
 
-test('anonymous visitors cannot read, save or authorize themselves', async () => {
+test('anonymous visitors can read shared data but cannot write, read members or grant roles', async () => {
   await asUser(null, async () => {
     await denied(() => db.query('select * from public.projectflow_state'));
-    await denied(getState);
+    await denied(() => db.query('select * from public.projectflow_members'));
+    assert.equal((await getState()).role, 'viewer');
     await denied(() => save([update('equipo14.personas', null, {})]));
     await denied(() => db.query("select public.projectflow_authorize('outsider@example.test', 'leader')"));
   }, 'anon');
 });
 
-test('having an account without an authorized role does not give access', async () => {
+test('having an account without an authorized role only gives public read access', async () => {
   await asUser(outsider, async () => {
     assert.equal((await db.query('select * from public.projectflow_state')).rows.length, 0);
-    await denied(getState);
+    assert.equal((await getState()).role, 'viewer');
     await denied(() => save([update('equipo14.personas', null, {})]));
     await denied(() => db.query("select public.projectflow_authorize('outsider@example.test', 'leader')"));
     await denied(() => db.query('insert into public.projectflow_members values ($1, $2, true)', [outsider, 'leader']));
@@ -124,10 +125,10 @@ test('invalid requests and duplicate or unknown sections are rejected', async ()
   });
 });
 
-test('revoking a responsible user blocks subsequent reads and writes', async () => {
+test('revoking an editor leaves public read access but blocks writes', async () => {
   await db.query('update public.projectflow_members set active = false where user_id = $1', [responsible]);
   await asUser(responsible, async () => {
-    await denied(getState);
+    assert.equal((await getState()).role, 'viewer');
     await denied(() => save([update('equipo14.hitos', { 1: true }, { 1: false })]));
     assert.equal((await db.query('select * from public.projectflow_state')).rows.length, 0);
   });
@@ -138,5 +139,41 @@ test('repeating setup preserves data and does not reactivate revoked accounts', 
   await asUser(leader, async () => {
     assert.deepEqual((await getState()).data['equipo14.personas'], { 1: 'Equipo' });
   });
-  await asUser(responsible, denied.bind(null, getState));
+  await asUser(responsible, async () => {
+    assert.equal((await getState()).role, 'viewer');
+    await denied(() => save([update('equipo14.hitos', { 1: true }, { 1: false })]));
+  });
+});
+
+
+test('anonymous readers receive saved data without member identities', async () => {
+  await asUser(null, async () => {
+    const result = await getState();
+    assert.deepEqual(result.data['equipo14.personas'], { 1: 'Equipo' });
+    assert.deepEqual(Object.keys(result).sort(), ['data', 'role', 'updated_at']);
+  }, 'anon');
+});
+
+test('public read migration upgrades private installations without losing data or permissions', async () => {
+  const legacy = await readFile(new URL('./fixtures/private-setup.sql', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../supabase/public-read.sql', import.meta.url), 'utf8');
+  await db.exec(legacy);
+  await asUser(null, () => denied(getState), 'anon');
+  const before = (await db.query('select data from public.projectflow_state')).rows[0].data;
+  await db.exec(migration);
+  await db.exec(migration); // Safe to run again from the SQL editor.
+  await asUser(null, async () => {
+    assert.deepEqual((await getState()).data, before);
+    await denied(() => save([update('equipo14.personas', before['equipo14.personas'], {})]));
+  }, 'anon');
+  await asUser(responsible, async () => {
+    assert.equal((await getState()).role, 'viewer');
+    await denied(() => save([update('equipo14.hitos', { 1: true }, {})]));
+  });
+  await asUser(leader, async () => {
+    const result = await save([update('equipo14.personas', before['equipo14.personas'], {
+      ...before['equipo14.personas'], schedule: [{ id: '1', title: 'Mi actividad', dueDate: '2026-11-01', done: false }]
+    })]);
+    assert.equal(result.data['equipo14.personas'].schedule[0].title, 'Mi actividad');
+  });
 });

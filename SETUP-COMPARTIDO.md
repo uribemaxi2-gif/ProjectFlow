@@ -1,79 +1,66 @@
-# Acceso privado y datos compartidos
+# Mi espacio personal: consulta con enlace y edición autorizada
 
-## Entrar y trabajar
+## Actualizar la instalación anterior
 
-Abre la dirección habitual de GitHub Pages y entra con la cuenta creada en
-**Authentication → Users**. Es la cuenta de ProjectFlow; no tiene por qué ser la
-misma contraseña con la que administras el panel de Supabase.
+Si ya ejecutaste el SQL de la versión privada y creaste tu cuenta:
 
-Solo los líderes (`leader`) y responsables (`responsible`) autorizados pueden
-consultar o modificar registros. Los permisos se aplican en la base de datos;
-ocultar el formulario o conocer la clave pública no permite saltárselos.
+1. Abre [supabase/public-read.sql](supabase/public-read.sql) y copia todo su contenido.
+2. En tu proyecto de Supabase, abre **SQL Editor → New query**, pega el contenido
+   y pulsa **Run**.
+3. Cuando aparezca **Success**, recarga ProjectFlow. Una ventana privada debe
+   permitir consultar la agenda, el plan semanal y el proyecto sin iniciar sesión.
 
-Los nombres y los hitos se guardan al modificarlos. La ficha y los registros
-se guardan con sus botones. Espera el mensaje **Guardado para el equipo** antes
-de cerrar la página. Si falla la conexión, la página lo indica y conserva los
-campos para volver a intentar el guardado.
+La actualización conserva los datos, las cuentas y sus autorizaciones. Se puede
+repetir. No es necesario volver a crear tu usuario ni cambiar la clave pública.
+La web mantiene disponible el inicio de sesión mientras este paso esté pendiente.
 
-Cada página carga los datos compartidos al abrirse. Mientras está visible,
-comprueba cada 30 segundos si hay cambios y muestra un aviso. Pulsa **Actualizar**
-para cargarlos. Si dos personas modifican la misma sección, se rechaza el segundo
-guardado para evitar sobrescribir cambios: conserva tus cambios, actualiza y
-vuelve a aplicarlos. La ficha, solicitudes, revisiones y acuerdos forman una
-sección; integrantes e hitos son otras dos secciones independientes.
+## Consultar y trabajar
 
-## Recuperar lo que estaba guardado en un navegador
+Comparte la dirección habitual de GitHub Pages. Quien la abra podrá ver los datos,
+buscar, filtrar, abrir el detalle de los registros y descargar una copia. Los
+visitantes no necesitan crear una cuenta. La vista indica **Solo lectura**.
+Todo el contenido guardado en este espacio es consultable con el enlace.
 
-1. Abre ProjectFlow en el mismo navegador y dirección donde introdujiste los datos.
-2. Inicia sesión. Si existen datos de la versión anterior, aparecerá
-   **Descargar datos anteriores** en la barra superior.
-3. Descarga ese respaldo. No se importa nada automáticamente.
-4. En **Datos del proyecto → Ficha del proyecto**, usa **Importar respaldo**.
-5. Revisa la confirmación: importar reemplaza los registros compartidos, incluidos
-   los integrantes e hitos que contenga el respaldo. Descarga antes el respaldo
-   actual si ya hay datos del equipo que debas conservar.
+Para editar, pulsa **Entrar para editar** y usa la cuenta creada en
+**Authentication → Users**. No es la cuenta con la que administras Supabase.
+Solo las cuentas activas que el propietario autorice pueden modificar información.
+Los permisos se aplican en la base de datos, además de en los formularios.
 
-## Configuración inicial en Supabase
+- **Mi agenda:** actividades personales con nombre, fecha prevista y casilla de
+  completada. Puedes añadir o eliminar actividades. No asigna tareas a otras
+  personas ni concede permisos de edición. Los ejemplos iniciales son editables.
+- **Plan semanal:** conserva las cuatro semanas y una de reserva, organizadas por
+  tus áreas de trabajo. Marca los hitos a medida que los completes.
+- **Mi proyecto:** ficha, solicitudes y tareas, revisiones, acuerdos y notas.
+  Usa **Ver detalle** para consultar los campos completos en modo de lectura.
 
-1. Crea el proyecto en Supabase.
-2. Ejecuta todo [supabase/setup.sql](supabase/setup.sql) desde **SQL Editor**.
-   Se puede repetir sin borrar datos ni reactivar cuentas revocadas.
-3. En **Authentication → Users → Add user → Create new user**, crea la cuenta
-   del líder con correo y contraseña. Activa **Auto Confirm User** si aparece.
-   Este alta manual no necesita configurar el envío de correos.
-4. Desde **SQL Editor**, autoriza el correo real de esa cuenta:
+La agenda y los hitos se guardan al modificarlos. La ficha y los registros usan
+sus botones de guardado. Espera **Guardado compartido** antes de cerrar.
+Si falla la conexión, los cambios pendientes permanecen en pantalla y se indica
+que aún no están compartidos.
+
+La vista de lectura carga los cambios automáticamente cada 30 segundos mientras
+está visible. Quien esté editando recibe un aviso y puede pulsar **Actualizar**.
+Si dos editores cambian la misma sección, se rechaza el guardado obsoleto para
+no sobrescribir cambios. Conserva lo escrito, actualiza y vuelve a aplicarlo.
+
+## Autorizar a otra persona para editar
+
+1. En **Authentication → Users → Add user → Create new user**, crea su cuenta
+   con correo y contraseña. Activa **Auto Confirm User** si aparece.
+2. Desde **SQL Editor**, ejecuta esta consulta con su correo real:
 
    ```sql
-   select public.projectflow_authorize('lider@ejemplo.com', 'leader');
+   select public.projectflow_authorize('colaborador@ejemplo.com', 'responsible');
    ```
 
-5. En `config.js`, completa la URL y la clave **Publishable** del proyecto.
-   Estos valores son públicos y están diseñados para el navegador. Nunca uses
-   claves `secret`, `service_role`, contraseñas ni tokens de administración.
-6. Publica los archivos del repositorio mediante el workflow de GitHub Pages.
+3. Esa persona usa el mismo enlace y pulsa **Entrar para editar**.
 
-El registro público no se ofrece en la aplicación. Aunque alguien obtenga una
-cuenta de Supabase por otra vía, no podrá ver datos hasta recibir autorización
-en `projectflow_members`. Puedes desactivar los registros nuevos en los ajustes
-de Authentication si solo crearás cuentas manualmente.
+Tu propia cuenta puede seguir con el rol `leader`. Ambos roles permiten editar;
+ninguno permite autorizar cuentas desde el navegador. Las cuentas nuevas que no
+autorices tienen únicamente el mismo acceso de lectura que cualquier visitante.
 
-## Añadir otro líder o responsable
-
-Crea primero su cuenta desde **Authentication → Users**, como en el paso anterior.
-Después ejecuta una de estas consultas con su correo real:
-
-```sql
--- Líder:
-select public.projectflow_authorize('lider@ejemplo.com', 'leader');
-
--- Responsable:
-select public.projectflow_authorize('responsable@ejemplo.com', 'responsible');
-```
-
-La autorización se administra desde Supabase. Las cuentas de la aplicación no
-pueden concederse permisos ni autorizar a otras personas por su cuenta.
-
-Para retirar el acceso conservando los registros:
+Para retirar el permiso de edición conservando los registros:
 
 ```sql
 update public.projectflow_members set active = false
@@ -82,18 +69,50 @@ where user_id = (
 );
 ```
 
-La base bloqueará las siguientes lecturas y escrituras de esa cuenta. Una página
-abierta se bloqueará al comprobar los permisos o intentar guardar. Los datos que
-alguien haya descargado previamente no se pueden recuperar de su dispositivo.
+La siguiente escritura se rechazará. En la comprobación de permisos o al intentar
+guardar, una página abierta pedirá volver a cargar el acceso. La lectura seguirá
+disponible con el enlace.
 
-## Comprobar la publicación
+## Datos anteriores y respaldos
 
-1. Espera a que **Deploy static content to Pages** termine correctamente en Actions.
-2. Abre una ventana privada: debe aparecer el inicio de sesión en las tres páginas.
-3. Entra con una cuenta autorizada, guarda un nombre y espera la confirmación.
-4. En otro navegador, entra con otra cuenta autorizada y comprueba ese nombre.
-5. Usa **Salir** al terminar. Si la sesión o el acceso dejan de ser válidos,
-   los siguientes accesos a la base deben rechazarse.
+Las asignaciones del equipo anterior se mantienen en **Mi agenda → Datos
+conservados del proyecto anterior**. Las actividades nuevas se guardan junto a
+esos datos. No se convierten nombres anteriores en fechas ni se borran registros.
 
-Las pruebas automáticas locales no sustituyen esta comprobación contra el proyecto
-real. No publiques un cambio de URL o de proyecto sin repetirla.
+Si los datos antiguos solo estaban en un navegador:
+
+1. Abre la misma dirección con ese navegador e inicia sesión para editar.
+2. Usa **Descargar datos anteriores** si aparece en la barra superior.
+3. Desde **Mi proyecto → Ficha del proyecto**, usa **Importar respaldo**.
+4. Revisa la confirmación: se reemplazan los registros compartidos y las secciones
+   incluidas en el archivo. Descarga antes un respaldo actual si necesitas conservarlo.
+
+Los respaldos nuevos incluyen la agenda con fechas y los hitos. Los respaldos
+antiguos siguen siendo compatibles. No se importa nada automáticamente.
+
+## Instalación nueva
+
+1. Crea el proyecto de Supabase y ejecuta todo [supabase/setup.sql](supabase/setup.sql)
+   desde **SQL Editor**. Incluye la lectura pública; no hace falta aplicar el otro SQL.
+2. Crea tu cuenta en **Authentication → Users**, como en los pasos anteriores.
+3. Autorízala desde **SQL Editor**:
+
+   ```sql
+   select public.projectflow_authorize('mi-correo@ejemplo.com', 'leader');
+   ```
+
+4. Completa `config.js` con la URL y la clave **Publishable** del proyecto.
+   Nunca uses contraseñas, claves `secret` o `service_role` en el frontend.
+5. Publica el repositorio con el workflow de GitHub Pages.
+
+## Verificar el acceso real
+
+1. Espera a que **Deploy static content to Pages** termine en Actions.
+2. Abre una ventana privada: debes poder consultar las tres páginas sin cuenta.
+3. Entra como editor en otro navegador, guarda una actividad y una fecha.
+4. En la ventana privada, pulsa **Actualizar** o espera 30 segundos y comprueba
+   que aparecen. Los campos deben seguir en modo de lectura.
+5. Pulsa **Salir** en la cuenta editora: debes volver a la consulta sin poder editar.
+
+Las pruebas locales usan una API simulada para el navegador y PostgreSQL local
+para los permisos. No sustituyen esta comprobación contra tu proyecto de Supabase.

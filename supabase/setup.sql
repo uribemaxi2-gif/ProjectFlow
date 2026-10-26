@@ -1,4 +1,5 @@
--- Ejecutar una vez desde SQL Editor de TU proyecto de Supabase.
+-- Lectura pública con el enlace; edición solo para cuentas autorizadas.
+-- Ejecutar desde SQL Editor de TU proyecto de Supabase.
 -- Se puede repetir: conserva los datos y las autorizaciones existentes.
 begin;
 
@@ -45,18 +46,20 @@ returns jsonb language plpgsql stable security definer set search_path = '' as $
 declare member_role text;
 begin
   select role into member_role from public.projectflow_members
-    where user_id = auth.uid() and active;
-  if member_role is null then
-    raise exception 'Esta cuenta no tiene acceso al proyecto.' using errcode = '42501';
-  end if;
+    where user_id = auth.uid() and active
+      and role in ('leader', 'responsible');
   return (
-    select jsonb_build_object('data', data, 'role', member_role, 'updated_at', updated_at)
+    select jsonb_build_object(
+      'data', data,
+      'role', coalesce(member_role, 'viewer'),
+      'updated_at', updated_at
+    )
     from public.projectflow_state where id = 1
   );
 end;
 $$;
-revoke all on function public.projectflow_get_state() from public, anon;
-grant execute on function public.projectflow_get_state() to authenticated;
+revoke all on function public.projectflow_get_state() from public;
+grant execute on function public.projectflow_get_state() to anon, authenticated;
 
 -- Escritura atómica con comparación de la versión que vio el navegador.
 -- Nunca acepta una sobrescritura silenciosa de datos que alguien ya cambió.
