@@ -1,6 +1,5 @@
 /* Shared reading and navigation styles, loaded after the page styles. */
-html { font-size: 100%; scroll-padding-top: calc(var(--pf-header-height, 5rem) + 1rem); }
-html.pf-large-text { font-size: 125%; }
+html { font-size: var(--pf-font-scale, 100%); scroll-padding-top: calc(var(--pf-header-height, 5rem) + 1rem); }
 body { font-size: 1rem; line-height: 1.6; overflow-wrap: anywhere; }
 button, input, select, textarea { font-family: inherit; }
 button, input:not([type=checkbox]):not([type=radio]), select, summary { min-height: 44px; }
@@ -30,7 +29,9 @@ input[type=checkbox] { flex-shrink: 0; }
 .pill.red { color: #a62c3b; }
 .hero .btn.primary { background: #5556d9; border-color: #5556d9; }
 .btn.icononly, .dialog-close { width: 44px; height: 44px; flex-shrink: 0; }
-.agenda-row { grid-template-columns: minmax(12rem, 1fr) minmax(11rem, .7fr) minmax(10rem, .7fr) auto auto; }
+.agenda-panel { container: agenda / inline-size; }
+.agenda-row { grid-template-columns: minmax(0, 1fr); }
+.agenda-title { grid-column: auto; }
 .agenda-row label, #plan-detail > label, .plan-dates label { font-size: 1rem; }
 .agenda-row input:not([type=checkbox]), .agenda-row select { font-size: 1rem; }
 .agenda-row .agenda-complete, #plan-detail .plan-check { min-height: 44px; }
@@ -46,24 +47,54 @@ input[type=checkbox] { flex-shrink: 0; }
 .pf-controls > *, .pf-project-actions > * { max-width: 100%; }
 #pf-display { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 10px 20px; background: #fff; border-bottom: 1px solid #dce0f0; }
 #pf-display button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; font-weight: 650; border: 1px solid #a5aec2; border-radius: 10px; padding: 8px 12px; background: #fff; color: #26334d; cursor: pointer; }
-#pf-display button[aria-pressed=true] { background: #343f66; border-color: #343f66; color: #fff; }
+#pf-display [hidden] { display: none; }
 .pf-context { flex: 1; min-width: 0; align-self: center; text-align: right; }
 .pf-context strong, .pf-context #pf-status { display: block; max-width: none; }
 .pf-context #pf-status { color: #536178; }
 .pf-context #pf-status[data-error=true] { color: #9f2236; }
-.pf-menu-settings { display: grid; gap: 10px; }
-.pf-menu-group { min-width: 0; border: 1px solid #465273; border-radius: 10px; background: #202b47; }
-.pf-menu-group summary { padding: 12px; cursor: pointer; font-weight: 650; }
-.pf-menu-group[open] summary { border-bottom: 1px solid #465273; }
-.pf-menu-content, #pf-account-content, #pf-project-content { padding: 12px; }
-.sidebar #pf-session, .sidebar #pf-projects { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; gap: 12px; padding: 0; border: 0; background: transparent; color: inherit; }
-.sidebar .pf-identity, .sidebar .pf-controls, .sidebar .pf-project-actions { display: grid; width: 100%; gap: 10px; }
-.sidebar #pf-email { color: #c1cbe1; }
-.sidebar #pf-projects label { display: block; margin: 0 0 8px; }
-.sidebar #pf-project-select { width: 100%; }
-.sidebar #pf-session button, .sidebar #pf-projects button { width: 100%; }
-#pf-text-size { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #bfc7db; border-radius: 8px; background: white; color: #26334d; font: inherit; cursor: pointer; }
-#pf-text-size[aria-pressed=true] { background: #4c5590; color: white; border-color: #b7c1ff; }
+.pf-gear { width: 24px; height: 24px; flex: 0 0 24px; }
+#pf-open-settings { border: 1px solid #465273; background: #202b47; color: white; }
+html.pf-settings-open .layout { display: none; }
+html.pf-locked #pf-settings { display: none !important; }
+#pf-settings[hidden] { display: none; }
+#pf-settings { width: 100%; max-width: 1120px; margin: 0 auto; padding: 40px 32px 64px; }
+#pf-settings:focus { outline: none; }
+.pf-settings-heading { margin-bottom: 28px; }
+.pf-settings-kicker { color: #5655a4; font-size: 1rem; font-weight: 700; letter-spacing: .05em; }
+.pf-settings-heading h1 { font-size: 2rem; line-height: 1.25; margin: 10px 0; }
+.pf-settings-heading p { margin: 0; color: #536178; }
+.pf-settings-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); grid-template-areas: "account appearance" "project appearance"; align-items: start; gap: 24px; }
+.pf-account-card { grid-area: account; }
+.pf-appearance-card { grid-area: appearance; }
+.pf-project-card { grid-area: project; }
+.pf-settings-card { min-width: 0; background: #fff; border: 1px solid #e0e5ef; border-radius: 20px; padding: 24px; box-shadow: 0 8px 28px #17203306; }
+.pf-settings-card h2 { font-size: 1.25rem; margin: 0 0 20px; }
+.pf-card-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+.pf-card-heading h2 { margin: 0; }
+.pf-account-avatar { display: grid; place-items: center; flex: 0 0 3rem; height: 3rem; border-radius: 50%; background: #eeedff; color: #5556d9; font-weight: 700; }
+#pf-settings #pf-session, #pf-settings #pf-projects { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; gap: 16px; padding: 0; border: 0; background: transparent; color: inherit; }
+#pf-settings .pf-identity, #pf-settings .pf-controls, #pf-settings .pf-project-actions { display: grid; gap: 12px; width: 100%; }
+#pf-settings #pf-email { color: #536178; }
+#pf-settings #pf-project-select { width: 100%; }
+#pf-settings #pf-projects label { display: block; margin: 0 0 8px; }
+#pf-settings button { min-height: 48px; font: inherit; padding: 12px 16px; border: 1px solid #c2cbde; border-radius: 12px; background: #f8f9fc; color: #26334d; cursor: pointer; }
+#pf-settings #pf-open-login, #pf-settings #pf-new-project { background: #5556d9; border-color: #5556d9; color: white; }
+#pf-settings #pf-logout { color: #9f2236; }
+.pf-size-label { display: block; font-weight: 650; margin-bottom: 6px; }
+#pf-text-description { display: block; color: #5655a4; }
+#pf-text-size { display: block; width: 100%; min-width: 0; min-height: 44px; margin: 16px 0 0; accent-color: #5556d9; cursor: pointer; touch-action: pan-y; }
+.pf-size-ticks { display: flex; justify-content: space-between; padding-inline: 4px; color: #536178; }
+.pf-size-ends { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; color: #536178; }
+#pf-font-help { color: #536178; margin: 20px 0; }
+.pf-font-preview { margin: 24px 0; padding: 20px; border: 1px solid #dce0f0; border-radius: 14px; background: #f5f6ff; }
+.pf-font-preview h3 { font-size: 1.25rem; margin: 12px 0; }
+.pf-font-preview p { margin: 0; line-height: 1.7; }
+#pf-font-reset { width: 100%; }
+@media (max-width: 48rem) {
+  #pf-settings { padding: 28px 16px 40px; }
+  .pf-settings-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "account" "appearance" "project"; gap: 20px; }
+  .pf-settings-card { padding: 20px; }
+}
 html.pf-locked #pf-display { display: none; }
 .pf-skip { position: fixed; top: 8px; left: 8px; transform: translateY(-200%); background: white; color: #172033; border: 2px solid #5556d9; padding: 12px; z-index: 20; }
 .pf-skip:focus { transform: none; }
@@ -87,10 +118,6 @@ html.pf-locked #pf-display { display: none; }
 #pf-menu-dialog #pf-menu-close { display: block; position: sticky; top: 8px; z-index: 1; align-self: flex-end; font: inherit; font-weight: 650; background: #343f66; color: white; border: 1px solid #7c89af; border-radius: 10px; padding: 8px 14px; }
 #pf-menu-dialog .side-note { display: none; }
 html.pf-menu-open { overflow: hidden; }
-@media (max-width: 85rem) {
-  .agenda-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .agenda-title { grid-column: 1 / -1; }
-}
 @media (max-width: 64rem) {
   .layout { display: block; }
   .main { padding: 24px 20px 48px; }
@@ -124,6 +151,15 @@ html.pf-menu-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition: none !important; }
+}
+/* Reflow fields by the available card width and chosen font size. */
+@container agenda (min-width: 28rem) {
+  .agenda-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .agenda-title { grid-column: 1 / -1; }
+}
+@container agenda (min-width: 56rem) {
+  .agenda-row { grid-template-columns: minmax(12rem, 1fr) minmax(11rem, .7fr) minmax(10rem, .7fr) auto auto; }
+  .agenda-title { grid-column: auto; }
 }
 @media print {
   #pf-display, #pf-projects, #pf-menu-dialog { display: none !important; }

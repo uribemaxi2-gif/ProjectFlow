@@ -15,13 +15,19 @@ personal. Las cuentas colaboradoras se crean una vez en Supabase Authentication.
 
 El menú se abre y cierra con **Abrir menú / Cerrar menú**. En celular y tablet
 comienza cerrado; al elegir una sección deja libre la pantalla. En PC puedes
-ocultarlo para ampliar el contenido. **Texto grande** aumenta la letra; ambas
-preferencias se guardan solo en ese navegador. También se respeta el zoom del
-navegador. El menú móvil admite teclado, Escape y cierre al tocar fuera.
-Dentro del menú, **Mi cuenta** reúne el acceso, la sesión y la actualización de
-datos; **Apariencia** contiene **Texto grande**; **Proyecto y enlace** reúne el
-selector, la creación de proyectos, los permisos y **Copiar enlace de lectura**.
-El nombre del proyecto y el estado de guardado siguen visibles sobre el contenido.
+ocultarlo para ampliar el contenido. El menú móvil admite teclado, Escape y cierre
+al tocar fuera. **⚙ Ajustes** abre una pantalla propia con **Mi cuenta**,
+**Apariencia** y **Proyecto y enlace**. El botón **Volver** y el botón Atrás del
+navegador regresan al proyecto sin perder formularios pendientes de guardar.
+El nombre del proyecto y el estado de guardado siguen visibles.
+
+**Tamaño de letra** tiene siete niveles, con vista previa y aplicación inmediata
+a toda la web. Son 87,5 %, 93,75 %, 100 %, 112,5 %, 125 %, 137,5 % y 150 % del
+tamaño base del navegador (14, 15, 16, 18, 20, 22 y 24 px con la base habitual).
+El nivel 3 es el predeterminado y **Restablecer tamaño** vuelve a él. La preferencia
+se guarda en este navegador; no modifica los datos compartidos ni las preferencias
+de otras personas. El antiguo **Texto grande** se conserva como nivel 5. También
+se respeta el zoom y el tamaño base que la persona configure en su navegador.
 
 ## Configurar o actualizar
 
