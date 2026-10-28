@@ -1,12 +1,12 @@
 .agenda-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 24px 0; }
 .agenda-stats .panel { padding: 20px; }
 .agenda-stats span { display: block; color: #61718b; }
-.agenda-stats strong { display: block; font-size: 30px; margin-top: 8px; }
+.agenda-stats strong { display: block; font-size:1.875rem; margin-top: 8px; }
 .agenda-panel { padding: 24px; }
 .agenda-panel .section-heading { margin-top: 0; flex-wrap: wrap; gap: 16px; }
 .agenda-row { display: grid; grid-template-columns: minmax(160px, 1fr) 155px minmax(120px, 1fr) auto auto; gap: 12px; align-items: end; padding: 20px 0; border-top: 1px solid #e7eaf2; }
-.agenda-row label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #53627c; }
-.agenda-row input:not([type=checkbox]), .agenda-row select { width: 100%; min-width: 0; padding: 12px; border: 1px solid #cbd2e0; border-radius: 8px; color: #26334d; font: inherit; font-size: 14px; background: white; }
+.agenda-row label { display: flex; flex-direction: column; gap: 8px; font-size:1rem; color: #53627c; }
+.agenda-row input:not([type=checkbox]), .agenda-row select { width: 100%; min-width: 0; padding: 12px; border: 1px solid #cbd2e0; border-radius: 8px; color: #26334d; font: inherit; font-size:1rem; background: white; }
 .agenda-row .agenda-complete { flex-direction: row; align-items: center; min-height: 44px; }
 .agenda-row input[type=checkbox] { width: 18px; height: 18px; accent-color: #5556d9; }
 .agenda-row button { min-height: 44px; }

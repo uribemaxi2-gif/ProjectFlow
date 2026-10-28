@@ -304,8 +304,12 @@ class SharedProjectTests(unittest.TestCase):
     def test_mobile_login_navigation_and_logout(self):
         page = self.page(mobile=True)
         self.login(page)
+        expect(page.locator('.sidebar')).to_be_hidden()
+        page.get_by_role('button', name='Abrir menú').click()
         page.locator('nav a[href*="proyecto.html"]').click()
+        page.get_by_role('button', name='Abrir menú').click()
         page.locator('.side-link[data-page="proyecto"]').click()
+        expect(page.locator('#pf-menu-dialog')).not_to_be_visible()
         expect(page.locator('#project-form')).to_be_visible()
         self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), 390)
         page.locator('#pf-logout').click()
@@ -315,6 +319,76 @@ class SharedProjectTests(unittest.TestCase):
         expect(page.locator('#agenda-dueDate-1')).to_have_attribute('readonly', '')
         self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), 390)
         page.screenshot(path='/tmp/projectflow-mobile-agenda.png', full_page=True)
+
+    def test_collapsible_menu_keyboard_and_reading_preferences(self):
+        page = self.page()
+        page.goto(self.base + '/index.html')
+        expect(page.locator('#pf-role')).to_have_text('Solo lectura')
+        initial_width = page.locator('main').bounding_box()['width']
+        page.get_by_role('button', name='Cerrar menú').click()
+        expect(page.locator('.sidebar')).to_be_hidden()
+        self.assertGreater(page.locator('main').bounding_box()['width'], initial_width)
+        page.get_by_role('button', name='Texto grande').click()
+        page.reload()
+        expect(page.locator('#pf-role')).to_have_text('Solo lectura')
+        expect(page.locator('.sidebar')).to_be_hidden()
+        expect(page.get_by_role('button', name='Texto grande')).to_have_attribute('aria-pressed', 'true')
+        self.assertEqual(page.locator('#agenda-title-1').evaluate('(el) => getComputedStyle(el).fontSize'), '20px')
+        page.get_by_role('button', name='Abrir menú').click()
+        page.locator('nav a[href*="cronograma.html"]').click()
+        expect(page.locator('#week-title-input')).to_be_visible()
+        expect(page.get_by_role('button', name='Texto grande')).to_have_attribute('aria-pressed', 'true')
+        page.set_viewport_size({'width': 768, 'height': 800})
+        expect(page.locator('.sidebar')).to_be_hidden()
+        page.get_by_role('button', name='Abrir menú').click()
+        expect(page.locator('#pf-menu-dialog')).to_be_visible()
+        expect(page.locator('#pf-menu-close')).to_be_focused()
+        # Native dialog traps focus away from the project controls.
+        page.keyboard.press('Shift+Tab')
+        self.assertTrue(page.evaluate("document.querySelector('#pf-menu-dialog').contains(document.activeElement)"))
+        page.keyboard.press('Escape')
+        expect(page.locator('#pf-menu-toggle')).to_be_focused()
+        expect(page.locator('#pf-menu-toggle')).to_have_attribute('aria-expanded', 'false')
+        page.get_by_role('button', name='Abrir menú').click()
+        page.mouse.click(760, 200)
+        expect(page.locator('#pf-menu-dialog')).not_to_be_visible()
+        page.get_by_role('button', name='Abrir menú').click()
+        page.set_viewport_size({'width': 1440, 'height': 900})
+        expect(page.locator('#pf-menu-dialog')).not_to_be_visible()
+        expect(page.locator('.sidebar')).to_be_visible()
+        page.get_by_role('button', name='Texto grande').click()
+        self.assertEqual(page.locator('#week-title-input').evaluate('(el) => getComputedStyle(el).fontSize'), '16px')
+        self.assertEqual(self.backend.saved, 0)
+
+    def test_readable_layout_on_small_mobile_tablet_desktop_and_large_text(self):
+        page = self.page()
+        self.login(page)
+        for width in (320, 390, 768, 1024, 1440):
+            page.set_viewport_size({'width': width, 'height': 900})
+            for large in (False, True):
+                for name in ('index.html', 'cronograma.html', 'proyecto.html'):
+                    with self.subTest(width=width, large=large, page=name):
+                        page.goto(self.base + '/' + name)
+                        expect(page.locator('#pf-role')).to_have_text('Edición autorizada')
+                        toggle = page.get_by_role('button', name='Texto grande')
+                        if toggle.get_attribute('aria-pressed') != str(large).lower():
+                            toggle.click()
+                        self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
+                        # Common reading text and form fields must never shrink below 16px.
+                        small = page.locator('main p, main label, main input, main button, #pf-session, #pf-projects').evaluate_all('''nodes => nodes.filter(el => el.getClientRects().length && parseFloat(getComputedStyle(el).fontSize) < 16).map(el => el.outerHTML)''')
+                        self.assertEqual(small, [])
+                        if name == 'index.html':
+                            page.locator('#pf-new-project').click()
+                            expect(page.locator('#pf-project-dialog')).to_be_visible()
+                            self.assertTrue(page.locator('#pf-project-dialog').evaluate('(el) => el.scrollWidth <= el.clientWidth'))
+                            page.keyboard.press('Escape')
+        # Text-only zoom must also reflow; 200% must not clip the content.
+        page.set_viewport_size({'width': 390, 'height': 844})
+        for name in ('index.html', 'cronograma.html', 'proyecto.html'):
+            page.goto(self.base + '/' + name)
+            expect(page.locator('#pf-role')).to_have_text('Edición autorizada')
+            page.add_style_tag(content='html { font-size: 200% !important; }')
+            self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), 390)
 
     def test_revoked_membership_locks_the_page_on_next_save(self):
         page = self.page()

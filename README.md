@@ -13,6 +13,12 @@ El propietario puede crear proyectos y autorizar editores **por proyecto**. Cono
 el enlace permite consultar ese proyecto, sin conceder edición ni mostrar el catálogo
 personal. Las cuentas colaboradoras se crean una vez en Supabase Authentication.
 
+El menú se abre y cierra con **Abrir menú / Cerrar menú**. En celular y tablet
+comienza cerrado; al elegir una sección deja libre la pantalla. En PC puedes
+ocultarlo para ampliar el contenido. **Texto grande** aumenta la letra; ambas
+preferencias se guardan solo en ese navegador. También se respeta el zoom del
+navegador. El menú móvil admite teclado, Escape y cierre al tocar fuera.
+
 ## Configurar o actualizar
 
 Ejecuta **todo** [supabase/setup.sql](supabase/setup.sql) en el SQL Editor de Supabase.
