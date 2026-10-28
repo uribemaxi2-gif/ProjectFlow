@@ -18,6 +18,10 @@ comienza cerrado; al elegir una sección deja libre la pantalla. En PC puedes
 ocultarlo para ampliar el contenido. **Texto grande** aumenta la letra; ambas
 preferencias se guardan solo en ese navegador. También se respeta el zoom del
 navegador. El menú móvil admite teclado, Escape y cierre al tocar fuera.
+Dentro del menú, **Mi cuenta** reúne el acceso, la sesión y la actualización de
+datos; **Apariencia** contiene **Texto grande**; **Proyecto y enlace** reúne el
+selector, la creación de proyectos, los permisos y **Copiar enlace de lectura**.
+El nombre del proyecto y el estado de guardado siguen visibles sobre el contenido.
 
 ## Configurar o actualizar
 

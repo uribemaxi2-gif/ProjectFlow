@@ -6,10 +6,10 @@
   bar.id = 'pf-projects'; bar.setAttribute('aria-label', 'Proyecto seleccionado');
   bar.innerHTML = `<div><label for="pf-project-select">Proyecto</label> <select id="pf-project-select" hidden></select><strong id="pf-project-name"></strong></div>
     <div class="pf-project-actions"><button id="pf-share-project" type="button">Copiar enlace de lectura</button><button id="pf-new-project" type="button" hidden>+ Nuevo proyecto</button><button id="pf-project-access" type="button" hidden>Quién puede editar</button></div><p id="pf-project-message" role="status"></p>`;
-  document.getElementById('pf-session').after(bar);
+  document.getElementById('pf-project-content').append(bar);
   const find = id => document.getElementById(id);
   const message = text => { find('pf-project-message').textContent = text; };
-  find('pf-project-name').textContent = info.name;
+  updateName();
   find('pf-new-project').hidden = !info.canCreate;
   find('pf-project-access').hidden = !info.canManage;
   if (!info.multi && ProjectFlow.canEdit()) message('La creación de proyectos estará disponible cuando completes la actualización de Supabase.');
@@ -29,6 +29,7 @@
   function updateName() {
     const name = ProjectFlow.project().name;
     find('pf-project-name').textContent = name;
+    find('pf-current-project').textContent = name;
     const option = Array.from(find('pf-project-select').options).find(item => item.value === info.id);
     if (option) option.textContent = name;
   }

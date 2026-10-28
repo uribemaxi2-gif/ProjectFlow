@@ -174,12 +174,12 @@
     const bar = document.createElement('div');
     bar.id = 'pf-session';
     bar.innerHTML = `<div class="pf-identity"><strong id="pf-role"></strong><span id="pf-email"></span></div>
-      <div class="pf-controls"><span id="pf-status" role="status" aria-live="polite">Datos compartidos</span>
+      <div class="pf-controls">
       <button type="button" id="pf-refresh">Actualizar</button>
       <button type="button" id="pf-previous" hidden>Descargar datos anteriores</button>
       <button type="button" id="pf-open-login">Entrar para editar</button>
       <button type="button" id="pf-logout" hidden>Salir</button></div>`;
-    document.body.insertBefore(bar, gate.nextSibling);
+    find('pf-account-content').append(bar);
     find('pf-role').textContent = canEdit() ? 'Edición autorizada' : 'Solo lectura';
     find('pf-email').textContent = user?.email || 'Puedes consultar sin cuenta';
     find('pf-open-login').hidden = !!user;

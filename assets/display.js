@@ -17,14 +17,22 @@
 
   const toolbar = document.createElement('div');
   toolbar.id = 'pf-display';
-  toolbar.setAttribute('aria-label', 'Navegación y lectura');
+  toolbar.setAttribute('aria-label', 'Navegación y estado del proyecto');
   toolbar.innerHTML = `<a class="pf-skip" href="#pf-main">Saltar al contenido</a>
     <button type="button" id="pf-menu-toggle" aria-controls="pf-navigation" aria-expanded="false"><span aria-hidden="true">☰</span> <span id="pf-menu-label">Abrir menú</span></button>
-    <button type="button" id="pf-text-size" aria-pressed="false">Texto grande</button>`;
+    <div class="pf-context"><strong id="pf-current-project"></strong><span id="pf-status" role="status" aria-live="polite">Datos compartidos</span></div>`;
   layout.before(toolbar);
+  const settings = document.createElement('div');
+  settings.className = 'pf-menu-settings';
+  settings.innerHTML = `<details class="pf-menu-group" id="pf-account-menu"><summary>Mi cuenta</summary><div id="pf-account-content"></div></details>
+    <details class="pf-menu-group" id="pf-appearance-menu"><summary>Apariencia</summary><div class="pf-menu-content"><button type="button" id="pf-text-size" aria-pressed="false">Texto grande</button></div></details>
+    <details class="pf-menu-group" id="pf-project-menu"><summary>Proyecto y enlace</summary><div id="pf-project-content"></div></details>`;
+  sidebar.querySelector('.side-note').before(settings);
   const toggle = toolbar.querySelector('#pf-menu-toggle');
   const menuLabel = toolbar.querySelector('#pf-menu-label');
-  const textSize = toolbar.querySelector('#pf-text-size');
+  const textSize = settings.querySelector('#pf-text-size');
+  // Keep the sticky navigation clear of the header, including long save errors.
+  new ResizeObserver(() => root.style.setProperty('--pf-header-height', `${toolbar.getBoundingClientRect().height}px`)).observe(toolbar);
   function largeText(enabled) {
     root.classList.toggle('pf-large-text', enabled);
     textSize.setAttribute('aria-pressed', String(enabled));
@@ -77,7 +85,8 @@
   drawer.addEventListener('close', reflect);
   drawer.addEventListener('keydown', event => {
     if (event.key !== 'Tab') return;
-    const controls = [...drawer.querySelectorAll('a[href], button:not([disabled])')].filter(el => el.getClientRects().length);
+    const controls = [...drawer.querySelectorAll('a[href], button:not([disabled]), select:not([disabled]), summary')]
+      .filter(el => el.getClientRects().length && !el.closest('details:not([open]) > :not(summary)'));
     const first = controls[0], last = controls.at(-1);
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
@@ -93,6 +102,13 @@
       if (event.target.closest('button[data-page]')) queueMicrotask(() => main.focus({ preventScroll: true }));
     }
   });
+  // Close the mobile drawer before an existing account/project dialog opens.
+  // Its close action will return focus to the visible menu button.
+  sidebar.addEventListener('click', event => {
+    if (drawer.open && event.target.closest('#pf-open-login, #pf-new-project, #pf-project-access')) {
+      drawer.close(); toggle.focus({ preventScroll: true });
+    }
+  }, true);
   compact.addEventListener('change', adapt);
   adapt();
 })();

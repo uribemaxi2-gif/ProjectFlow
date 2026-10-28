@@ -175,10 +175,26 @@ class SharedProjectTests(unittest.TestCase):
         page.on('pageerror', lambda error: self.errors.append(str(error)))
         return page
 
+    def open_menu_section(self, page, section):
+        if page.locator('#pf-menu-toggle').get_attribute('aria-expanded') == 'false':
+            page.locator('#pf-menu-toggle').click()
+        group = page.locator('#pf-' + section + '-menu')
+        if group.get_attribute('open') is None:
+            group.locator('summary').click()
+
+    def menu_click(self, page, selector, section):
+        self.open_menu_section(page, section)
+        page.locator(selector).click()
+
+    def close_mobile_menu(self, page):
+        if page.locator('#pf-menu-dialog').is_visible():
+            page.locator('#pf-menu-close').click()
+            expect(page.locator('#pf-menu-toggle')).to_have_attribute('aria-expanded', 'false')
+
     def login(self, page, email='leader@example.test', path='index.html'):
         page.goto(self.base + '/' + path)
         if self.backend.public:
-            page.locator('#pf-open-login').click()
+            self.menu_click(page, '#pf-open-login', 'account')
         page.locator('#pf-email-input').fill(email)
         page.locator('#pf-password').fill('test-password-only')
         page.locator('#pf-enter').click()
@@ -235,7 +251,7 @@ class SharedProjectTests(unittest.TestCase):
         expect(first.locator('#agenda-title-1')).to_have_value('Cambio sin guardar')
         self.assertEqual(self.backend.data[TEAM]['schedule'][0]['title'], 'Cambio del responsable')
         first.once('dialog', lambda dialog: dialog.accept())
-        first.locator('#pf-refresh').click()
+        self.menu_click(first, '#pf-refresh', 'account')
         expect(first.locator('#agenda-title-1')).to_have_value('Cambio del responsable')
 
     def test_project_form_and_request_retry_do_not_duplicate_records(self):
@@ -296,7 +312,7 @@ class SharedProjectTests(unittest.TestCase):
         expect(page.locator('#agenda-title-1')).to_have_value('Definir el objetivo')
         self.assertEqual(self.backend.data, {})
         with page.expect_download() as result:
-            page.locator('#pf-previous').click()
+            self.menu_click(page, '#pf-previous', 'account')
         exported = json.loads(Path(result.value.path()).read_text())
         self.assertEqual(exported['workspaces']['team'], {'1': 'Nombre anterior'})
         self.assertEqual(self.backend.data, {})
@@ -312,7 +328,7 @@ class SharedProjectTests(unittest.TestCase):
         expect(page.locator('#pf-menu-dialog')).not_to_be_visible()
         expect(page.locator('#project-form')).to_be_visible()
         self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), 390)
-        page.locator('#pf-logout').click()
+        self.menu_click(page, '#pf-logout', 'account')
         expect(page.locator('#pf-role')).to_have_text('Solo lectura')
         expect(page.locator('.layout')).to_be_visible()
         page.goto(self.base + '/index.html')
@@ -328,16 +344,17 @@ class SharedProjectTests(unittest.TestCase):
         page.get_by_role('button', name='Cerrar menú').click()
         expect(page.locator('.sidebar')).to_be_hidden()
         self.assertGreater(page.locator('main').bounding_box()['width'], initial_width)
-        page.get_by_role('button', name='Texto grande').click()
+        self.menu_click(page, '#pf-text-size', 'appearance')
+        page.locator('#pf-menu-toggle').click()
         page.reload()
         expect(page.locator('#pf-role')).to_have_text('Solo lectura')
         expect(page.locator('.sidebar')).to_be_hidden()
-        expect(page.get_by_role('button', name='Texto grande')).to_have_attribute('aria-pressed', 'true')
+        expect(page.locator('#pf-text-size')).to_have_attribute('aria-pressed', 'true')
         self.assertEqual(page.locator('#agenda-title-1').evaluate('(el) => getComputedStyle(el).fontSize'), '20px')
         page.get_by_role('button', name='Abrir menú').click()
         page.locator('nav a[href*="cronograma.html"]').click()
         expect(page.locator('#week-title-input')).to_be_visible()
-        expect(page.get_by_role('button', name='Texto grande')).to_have_attribute('aria-pressed', 'true')
+        expect(page.locator('#pf-text-size')).to_have_attribute('aria-pressed', 'true')
         page.set_viewport_size({'width': 768, 'height': 800})
         expect(page.locator('.sidebar')).to_be_hidden()
         page.get_by_role('button', name='Abrir menú').click()
@@ -356,8 +373,53 @@ class SharedProjectTests(unittest.TestCase):
         page.set_viewport_size({'width': 1440, 'height': 900})
         expect(page.locator('#pf-menu-dialog')).not_to_be_visible()
         expect(page.locator('.sidebar')).to_be_visible()
-        page.get_by_role('button', name='Texto grande').click()
+        self.menu_click(page, '#pf-text-size', 'appearance')
         self.assertEqual(page.locator('#week-title-input').evaluate('(el) => getComputedStyle(el).fontSize'), '16px')
+        self.assertEqual(self.backend.saved, 0)
+
+    def test_mobile_menu_account_appearance_sharing_and_project_dialogs(self):
+        page = self.page(mobile=True)
+        self.login(page)
+        project = self.create_project(page, 'Desde el menú', 2, '2026-11-14')
+        expect(page.locator('#pf-current-project')).to_have_text('Desde el menú')
+        expect(page.locator('#pf-status')).to_be_visible()
+        for selector in ('#pf-open-login', '#pf-logout', '#pf-text-size', '#pf-share-project'):
+            expect(page.locator(selector)).to_be_hidden()
+        self.menu_click(page, '#pf-text-size', 'appearance')
+        self.close_mobile_menu(page)
+        expect(page.locator('#pf-current-project')).to_be_visible()
+        page.context.grant_permissions(['clipboard-read', 'clipboard-write'])
+        self.menu_click(page, '#pf-share-project', 'project')
+        expect(page.locator('#pf-project-message')).to_contain_text('Enlace copiado')
+        shared = page.evaluate('navigator.clipboard.readText()')
+        self.assertEqual(parse_qs(urlparse(shared).query)['project'], [project])
+        page.evaluate("() => { navigator.clipboard.writeText = async () => { throw new Error('Clipboard denied'); }; }")
+        page.locator('#pf-share-project').click()
+        expect(page.locator('#pf-project-message')).to_contain_text(shared)
+        self.assertTrue(page.locator('#pf-menu-dialog').evaluate('(el) => el.scrollWidth <= el.clientWidth'))
+        # The mobile drawer must release focus before opening a project dialog.
+        self.menu_click(page, '#pf-project-access', 'project')
+        expect(page.locator('#pf-menu-dialog')).not_to_be_visible()
+        expect(page.locator('#pf-add-editor input')).to_be_focused()
+        page.locator('#pf-access-close').click()
+        expect(page.locator('#pf-menu-toggle')).to_be_focused()
+        self.menu_click(page, '#pf-new-project', 'project')
+        expect(page.locator('#pf-menu-dialog')).not_to_be_visible()
+        page.keyboard.press('Escape')
+        expect(page.locator('#pf-menu-toggle')).to_be_focused()
+        # The same menu exposes sharing to readers, without owner controls.
+        reader = self.page(mobile=True)
+        reader.goto(shared)
+        self.open_menu_section(reader, 'project')
+        expect(reader.locator('#pf-share-project')).to_be_visible()
+        expect(reader.locator('#pf-new-project')).to_be_hidden()
+        expect(reader.locator('#pf-project-access')).to_be_hidden()
+        self.menu_click(reader, '#pf-open-login', 'account')
+        expect(reader.locator('#pf-menu-dialog')).not_to_be_visible()
+        expect(reader.locator('#pf-email-input')).to_be_focused()
+        reader.locator('#pf-cancel-login').click()
+        expect(reader.locator('#pf-current-project')).to_have_text('Desde el menú')
+        expect(reader.locator('#pf-status')).to_be_visible()
         self.assertEqual(self.backend.saved, 0)
 
     def test_readable_layout_on_small_mobile_tablet_desktop_and_large_text(self):
@@ -370,15 +432,16 @@ class SharedProjectTests(unittest.TestCase):
                     with self.subTest(width=width, large=large, page=name):
                         page.goto(self.base + '/' + name)
                         expect(page.locator('#pf-role')).to_have_text('Edición autorizada')
-                        toggle = page.get_by_role('button', name='Texto grande')
+                        toggle = page.locator('#pf-text-size')
                         if toggle.get_attribute('aria-pressed') != str(large).lower():
-                            toggle.click()
+                            self.menu_click(page, '#pf-text-size', 'appearance')
+                            self.close_mobile_menu(page)
                         self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), width)
                         # Common reading text and form fields must never shrink below 16px.
                         small = page.locator('main p, main label, main input, main button, #pf-session, #pf-projects').evaluate_all('''nodes => nodes.filter(el => el.getClientRects().length && parseFloat(getComputedStyle(el).fontSize) < 16).map(el => el.outerHTML)''')
                         self.assertEqual(small, [])
                         if name == 'index.html':
-                            page.locator('#pf-new-project').click()
+                            self.menu_click(page, '#pf-new-project', 'project')
                             expect(page.locator('#pf-project-dialog')).to_be_visible()
                             self.assertTrue(page.locator('#pf-project-dialog').evaluate('(el) => el.scrollWidth <= el.clientWidth'))
                             page.keyboard.press('Escape')
@@ -479,7 +542,7 @@ class SharedProjectTests(unittest.TestCase):
     def test_public_login_can_be_cancelled_without_losing_read_access(self):
         page = self.page()
         page.goto(self.base + '/index.html')
-        page.locator('#pf-open-login').click()
+        self.menu_click(page, '#pf-open-login', 'account')
         page.locator('#pf-password').fill('not-submitted')
         page.locator('#pf-cancel-login').click()
         expect(page.locator('.layout')).to_be_visible()
@@ -487,7 +550,7 @@ class SharedProjectTests(unittest.TestCase):
         expect(page.locator('#pf-password')).to_have_value('')
 
     def create_project(self, page, name, count, due):
-        page.locator('#pf-new-project').click()
+        self.menu_click(page, '#pf-new-project', 'project')
         page.locator('#pf-project-create [name="name"]').fill(name)
         page.locator('#pf-project-create [name="start"]').fill('2026-11-01')
         page.locator('#pf-project-create [name="due"]').fill(due)
@@ -516,12 +579,13 @@ class SharedProjectTests(unittest.TestCase):
         page.locator('nav a[href*="proyecto.html"]').click()
         page.locator('.side-link[data-page="proyecto"]').click()
         expect(page.locator('#project-delivery')).to_have_value('2027-01-15')
+        self.open_menu_section(page, 'project')
         page.locator('#pf-project-select').select_option(first)
         expect(page.locator('.agenda-title input')).to_have_value('Entrega corta')
         expect(page.locator('.agenda-row input[type="date"]')).to_have_value('2026-11-10')
         self.assertEqual(len(self.backend.projects[second]['data'][TEAM]['schedule']), 0)
         page.context.grant_permissions(['clipboard-read','clipboard-write'])
-        page.locator('#pf-share-project').click()
+        self.menu_click(page, '#pf-share-project', 'project')
         expect(page.locator('#pf-project-message')).to_contain_text('Enlace copiado')
         shared = page.evaluate('navigator.clipboard.readText()')
         reader = self.page(); reader.goto(shared)
@@ -533,7 +597,7 @@ class SharedProjectTests(unittest.TestCase):
     def test_editor_grants_are_limited_to_one_project_and_can_be_revoked(self):
         owner = self.page(); self.login(owner)
         first = self.create_project(owner, 'Compartido', 3, '2026-11-21')
-        owner.locator('#pf-project-access').click()
+        self.menu_click(owner, '#pf-project-access', 'project')
         owner.locator('#pf-add-editor [name="email"]').fill('responsible@example.test')
         owner.locator('#pf-add-editor button[type="submit"]').click()
         expect(owner.locator('#pf-access-message')).to_contain_text('solo en este proyecto')
@@ -545,8 +609,9 @@ class SharedProjectTests(unittest.TestCase):
         editor.goto(self.base+'/index.html?project='+second)
         expect(editor.locator('#pf-role')).to_have_text('Solo lectura')
         expect(editor.locator('#agenda-add')).to_be_hidden()
+        self.open_menu_section(owner, 'project')
         owner.locator('#pf-project-select').select_option(first)
-        owner.locator('#pf-project-access').click()
+        self.menu_click(owner, '#pf-project-access', 'project')
         owner.locator('#pf-editor-list button').click()
         expect(owner.locator('#pf-access-message')).to_contain_text('retirado')
         editor.goto(self.base+'/index.html?project='+first)
