@@ -6,13 +6,15 @@ No test contacts Supabase or sends email.
 import base64
 import copy
 import json
+import uuid
+import datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from functools import partial
 from pathlib import Path
 import threading
 import time
 import unittest
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 from playwright.sync_api import sync_playwright, expect
 
@@ -34,6 +36,9 @@ class Backend:
         self.fail_next_save = False
         self.saved = 0
         self.public = True
+        self.multi = True
+        self.default_id = '20000000-0000-0000-0000-000000000001'
+        self.projects = {}
 
     @staticmethod
     def jwt(email):
@@ -77,27 +82,62 @@ class Backend:
         if path == '/auth/v1/user':
             respond(200, {'id': email, 'email': email, 'aud': 'authenticated'})
             return
-        if path == '/rest/v1/rpc/projectflow_get_state' and (self.public or email in self.roles):
-            respond(200, {'data': self.data, 'role': self.roles.get(email, 'viewer')})
+        name = path.removeprefix('/rest/v1/rpc/')
+        if not self.multi and name not in ('projectflow_get_state', 'projectflow_save'):
+            respond(404, {'code': 'PGRST202', 'message': 'Function not installed'})
             return
-        if email not in self.roles:
+        selected = body.get('p_project_id') or self.default_id
+        if selected != self.default_id and selected not in self.projects:
+            respond(404, {'code': 'P0002', 'message': 'El proyecto no existe'})
+            return
+        data = self.data if selected == self.default_id else self.projects[selected]['data']
+        roles = self.roles if selected == self.default_id else self.projects[selected]['roles']
+        def state():
+            result = {'data': data, 'role': roles.get(email, 'viewer')}
+            if self.multi:
+                result.update({'project_id': selected, 'name': data.get(PROJECT, {}).get('project', {}).get('name', 'Mi proyecto'),
+                               'can_create': email == 'leader@example.test', 'can_manage': roles.get(email) == 'leader'})
+            return result
+        if name in ('projectflow_get_state', 'projectflow_get_project') and (self.public or email in roles):
+            respond(200, state())
+            return
+        if name == 'projectflow_list_projects' and email:
+            projects = [(self.default_id, self.data, self.roles)] + [(id, p['data'], p['roles']) for id, p in self.projects.items()]
+            respond(200, [{'id': id, 'name': d.get(PROJECT, {}).get('project', {}).get('name', 'Mi proyecto')} for id, d, r in projects if email in r])
+            return
+        if name == 'projectflow_create_project' and email == 'leader@example.test':
+            selected = str(uuid.uuid4())
+            start = datetime.date.fromisoformat(body['p_start']) if body.get('p_start') else None
+            weeks = [{'id': str(uuid.uuid4()), 'title': 'Semana '+str(i+1), 'objective': '',
+                      'startDate': str(start+datetime.timedelta(days=i*7)) if start else '',
+                      'dueDate': str(start+datetime.timedelta(days=i*7+6)) if start else '', 'done': False} for i in range(body['p_weeks'])]
+            data = {TEAM:{'schedule':[]}, PLAN:{'weeks':weeks}, PROJECT:{'schema':1,'project':{'name':body['p_name'],'startDate':body.get('p_start') or '', 'targetDate':body.get('p_due') or ''},'requests':[],'reviews':[],'agreements':[],'activity':[]}}
+            roles = {email:'leader'}
+            self.projects[selected] = {'data':data,'roles':roles}
+            respond(200, state())
+            return
+        if name in ('projectflow_list_editors','projectflow_set_editor') and roles.get(email) == 'leader':
+            if name == 'projectflow_set_editor':
+                if body['p_enabled']: roles[body['p_email']] = 'responsible'
+                else: roles.pop(body['p_email'], None)
+            respond(200, [{'email': e,'owner': r == 'leader','active':True} for e,r in roles.items()])
+            return
+        if email not in roles or name not in ('projectflow_save','projectflow_save_project'):
             respond(403, {'code': '42501', 'message': 'Acceso denegado'})
             return
-        if path == '/rest/v1/rpc/projectflow_save':
-            if self.fail_next_save:
-                self.fail_next_save = False
-                respond(503, {'code': 'unavailable', 'message': 'Temporary failure'})
-                return
-            updates = body['p_updates']
-            if any(self.data.get(item['key']) != item['expected'] for item in updates):
-                respond(409, {'code': '40001', 'message': 'Concurrent update'})
-                return
-            for item in updates:
-                self.data[item['key']] = copy.deepcopy(item['value'])
-            self.saved += 1
-            respond(200, {'data': self.data, 'role': self.roles[email]})
+        if self.fail_next_save:
+            self.fail_next_save = False
+            respond(503, {'code': 'unavailable', 'message': 'Temporary failure'})
             return
-        raise AssertionError(f'Unexpected request: {request.method} {path}')
+        updates = body['p_updates']
+        if any(data.get(item['key']) != item['expected'] for item in updates):
+            respond(409, {'code': '40001', 'message': 'Concurrent update'})
+            return
+        for item in updates:
+            data[item['key']] = copy.deepcopy(item['value'])
+        self.saved += 1
+        respond(200, state())
+
 
 
 class SharedProjectTests(unittest.TestCase):
@@ -143,7 +183,9 @@ class SharedProjectTests(unittest.TestCase):
         page.locator('#pf-password').fill('test-password-only')
         page.locator('#pf-enter').click()
         expect(page.locator('#pf-gate')).to_be_hidden()
-        expect(page.locator('#pf-role')).to_have_text('Edición autorizada' if email in self.backend.roles else 'Solo lectura')
+        selected = parse_qs(urlparse(page.url).query).get('project', [self.backend.default_id])[0]
+        roles = self.backend.roles if selected == self.backend.default_id else self.backend.projects[selected]['roles']
+        expect(page.locator('#pf-role')).to_have_text('Edición autorizada' if email in roles else 'Solo lectura')
 
     def wait_saved(self, page):
         expect(page.locator('#pf-status')).to_have_text('Guardado compartido')
@@ -172,11 +214,11 @@ class SharedProjectTests(unittest.TestCase):
         responsible = self.page()
         self.login(responsible, 'responsible@example.test')
         expect(responsible.locator('#agenda-title-1')).to_have_value('Integrante compartido')
-        responsible.locator('nav a[href="cronograma.html"]').click()
-        responsible.locator('[data-milestone="1"]').check()
+        responsible.locator('nav a[href*="cronograma.html"]').click()
+        responsible.locator('#week-done').check()
         self.wait_saved(responsible)
         leader.goto(self.base + '/cronograma.html')
-        expect(leader.locator('[data-milestone="1"]')).to_be_checked()
+        expect(leader.locator('#week-done')).to_be_checked()
         expect(leader.locator('#progress-percent')).to_have_text('25%')
 
     def test_stale_browser_preserves_other_person_changes(self):
@@ -262,7 +304,7 @@ class SharedProjectTests(unittest.TestCase):
     def test_mobile_login_navigation_and_logout(self):
         page = self.page(mobile=True)
         self.login(page)
-        page.locator('nav a[href="proyecto.html"]').click()
+        page.locator('nav a[href*="proyecto.html"]').click()
         page.locator('.side-link[data-page="proyecto"]').click()
         expect(page.locator('#project-form')).to_be_visible()
         self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), 390)
@@ -351,6 +393,7 @@ class SharedProjectTests(unittest.TestCase):
 
     def test_private_database_explains_pending_update_and_still_allows_editors(self):
         self.backend.public = False
+        self.backend.multi = False
         page = self.page()
         page.goto(self.base + '/index.html')
         expect(page.locator('#pf-message')).to_contain_text('todavía no está disponible')
@@ -368,6 +411,101 @@ class SharedProjectTests(unittest.TestCase):
         expect(page.locator('.layout')).to_be_visible()
         expect(page.locator('#pf-role')).to_have_text('Solo lectura')
         expect(page.locator('#pf-password')).to_have_value('')
+
+    def create_project(self, page, name, count, due):
+        page.locator('#pf-new-project').click()
+        page.locator('#pf-project-create [name="name"]').fill(name)
+        page.locator('#pf-project-create [name="start"]').fill('2026-11-01')
+        page.locator('#pf-project-create [name="due"]').fill(due)
+        page.locator('#pf-project-create [name="weeks"]').fill(str(count))
+        page.locator('#pf-project-create button[type="submit"]').click()
+        expect(page.locator('#pf-project-select option:checked')).to_have_text(name)
+        return parse_qs(urlparse(page.url).query)['project'][0]
+
+    def test_multiple_projects_keep_dates_tasks_and_navigation_separate(self):
+        page = self.page()
+        self.login(page)
+        first = self.create_project(page, 'Corto', 2, '2026-11-14')
+        page.locator('#agenda-add').click()
+        page.locator('.agenda-title input').fill('Entrega corta')
+        page.locator('.agenda-row input[type="date"]').fill('2026-11-10')
+        page.locator('.agenda-row select').select_option(index=1)
+        self.wait_saved(page)
+        page.locator('nav a[href*="cronograma.html"]').click()
+        expect(page.locator('#plan-weeks button')).to_have_count(2)
+        expect(page.locator('#week-tasks')).to_contain_text('Entrega corta')
+        self.assertIn(first, page.url)
+        second = self.create_project(page, 'Largo', 10, '2027-01-15')
+        expect(page.locator('#agenda-list .agenda-row')).to_have_count(0)
+        page.locator('nav a[href*="cronograma.html"]').click()
+        expect(page.locator('#plan-weeks button')).to_have_count(10)
+        page.locator('nav a[href*="proyecto.html"]').click()
+        page.locator('.side-link[data-page="proyecto"]').click()
+        expect(page.locator('#project-delivery')).to_have_value('2027-01-15')
+        page.locator('#pf-project-select').select_option(first)
+        expect(page.locator('.agenda-title input')).to_have_value('Entrega corta')
+        expect(page.locator('.agenda-row input[type="date"]')).to_have_value('2026-11-10')
+        self.assertEqual(len(self.backend.projects[second]['data'][TEAM]['schedule']), 0)
+        page.context.grant_permissions(['clipboard-read','clipboard-write'])
+        page.locator('#pf-share-project').click()
+        expect(page.locator('#pf-project-message')).to_contain_text('Enlace copiado')
+        shared = page.evaluate('navigator.clipboard.readText()')
+        reader = self.page(); reader.goto(shared)
+        expect(reader.locator('.agenda-title input')).to_have_value('Entrega corta')
+        expect(reader.locator('#pf-project-select')).to_be_hidden()
+        expect(reader.locator('#pf-new-project')).to_be_hidden()
+        expect(reader.locator('#pf-role')).to_have_text('Solo lectura')
+
+    def test_editor_grants_are_limited_to_one_project_and_can_be_revoked(self):
+        owner = self.page(); self.login(owner)
+        first = self.create_project(owner, 'Compartido', 3, '2026-11-21')
+        owner.locator('#pf-project-access').click()
+        owner.locator('#pf-add-editor [name="email"]').fill('responsible@example.test')
+        owner.locator('#pf-add-editor button[type="submit"]').click()
+        expect(owner.locator('#pf-access-message')).to_contain_text('solo en este proyecto')
+        owner.locator('#pf-access-close').click()
+        second = self.create_project(owner, 'Otro', 7, '2026-12-20')
+        editor = self.page(); self.login(editor, 'responsible@example.test', 'index.html?project='+first)
+        expect(editor.locator('#pf-role')).to_have_text('Edición autorizada')
+        expect(editor.locator('#pf-project-access')).to_be_hidden()
+        editor.goto(self.base+'/index.html?project='+second)
+        expect(editor.locator('#pf-role')).to_have_text('Solo lectura')
+        expect(editor.locator('#agenda-add')).to_be_hidden()
+        owner.locator('#pf-project-select').select_option(first)
+        owner.locator('#pf-project-access').click()
+        owner.locator('#pf-editor-list button').click()
+        expect(owner.locator('#pf-access-message')).to_contain_text('retirado')
+        editor.goto(self.base+'/index.html?project='+first)
+        expect(editor.locator('#pf-role')).to_have_text('Solo lectura')
+
+    def test_custom_week_removal_preserves_task_dates_and_unassigns_tasks(self):
+        page = self.page(); self.login(page)
+        project = self.create_project(page, 'Plan flexible', 1, '2026-11-07')
+        page.locator('#agenda-add').click()
+        page.locator('.agenda-title input').fill('Tarea con fecha')
+        page.locator('.agenda-row input[type="date"]').fill('2026-11-04')
+        page.locator('.agenda-row select').select_option(index=1)
+        self.wait_saved(page)
+        page.locator('nav a[href*="cronograma.html"]').click()
+        page.locator('#week-title-input').fill('Primera fase')
+        page.locator('#week-due').fill('2026-11-06')
+        self.wait_saved(page)
+        page.once('dialog', lambda dialog: dialog.accept())
+        page.locator('#plan-remove').click()
+        expect(page.locator('#plan-weeks button')).to_have_count(0)
+        task = self.backend.projects[project]['data'][TEAM]['schedule'][0]
+        self.assertEqual(task['dueDate'],'2026-11-04')
+        self.assertEqual(task['weekId'],'')
+        page.locator('#plan-add').click()
+        self.wait_saved(page)
+        expect(page.locator('#plan-weeks button')).to_have_count(1)
+
+    def test_unknown_project_never_opens_or_writes_the_original(self):
+        page = self.page()
+        page.goto(self.base+'/index.html?project=ffffffff-ffff-ffff-ffff-ffffffffffff')
+        expect(page.locator('#pf-message')).to_contain_text('no existe')
+        expect(page.locator('.layout')).to_be_hidden()
+        self.assertEqual(self.backend.saved,0)
 
 
 if __name__ == '__main__':

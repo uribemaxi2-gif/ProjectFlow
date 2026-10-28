@@ -36,81 +36,38 @@
   <nav aria-label="Páginas del proyecto"><p class="side-label">Espacio de trabajo</p><div class="side-nav"><a class="side-link " href="index.html" aria-current="false"><span class="side-icon">▦</span> Mi agenda</a>
        <a class="side-link active" href="cronograma.html" aria-current="page"><span class="side-icon">◷</span> Plan semanal</a>
        <a class="side-link" href="proyecto.html" aria-current="false"><span class="side-icon">▤</span> Mi proyecto</a></div></nav>
-  <div class="side-note"><div class="side-note-tag"><span class="tiny-dot"></span> Plan de ejecución</div><strong>4 + 1 semanas</strong><p>Cuatro semanas de desarrollo y entrega, con una quinta de reserva para imprevistos.</p></div>
+  <div class="side-note"><div class="side-note-tag"><span class="tiny-dot"></span> Plan de ejecución</div><strong>Tu propio calendario</strong><p>Organiza cada proyecto con las semanas, objetivos y fechas que necesite.</p></div>
   <div class="sidebar-footer">Mi espacio personal · Plan de avance</div>
  </aside>
  <main class="main">
   <div class="topbar"><div class="crumb">Plan del proyecto &nbsp; / &nbsp; <b>Cronograma</b></div><div class="top-right"><span class="top-chip">● &nbsp; Mi espacio personal</span><span class="avatar-mark">Yo</span></div></div>
   
- <section class="hero"><span class="eyebrow">02 / Plan de ejecución</span><h1>De la idea a la entrega.<br>En cuatro semanas.</h1><p>Un cronograma realista para construir un MVP, probarlo en una revisión final y llegar a la entrega con una semana adicional de contingencia.</p><div class="hero-flags"><span class="hero-flag">4 semanas de ejecución</span><span class="hero-flag">+1 semana de reserva</span><span class="hero-flag">Entregas por hitos</span></div></section>
- <section class="stats" aria-label="Datos del cronograma"><div class="stat"><div class="stat-top"><span class="stat-sub">Semanas base</span><span class="symbol">◷</span></div><span class="stat-number">04</span><div class="stat-sub">Plan principal de ejecución</div></div><div class="stat"><div class="stat-top"><span class="stat-sub">Reserva</span><span class="symbol">◇</span></div><span class="stat-number">01</span><div class="stat-sub">Margen para imprevistos</div></div><div class="stat"><div class="stat-top"><span class="stat-sub">Hitos de referencia</span><span class="symbol">✓</span></div><span class="stat-number">04</span><div class="stat-sub">Uno por semana base</div></div><div class="stat"><div class="stat-top"><span class="stat-sub">revisión final</span><span class="symbol">⤴</span></div><span class="stat-number">S3</span><div class="stat-sub">Recibe el MVP para revisión</div></div></section>
- <div class="section-heading"><div><h2>Mapa de las cinco semanas</h2><p>Selecciona una semana para ver las tareas de cada área y los entregables.</p></div><button class="action-btn" data-print type="button">⎙ &nbsp; Imprimir</button></div>
- <section class="panel roadmap"><div class="roadmap-title">Ruta del proyecto</div><div class="roadmap-track" role="group" aria-label="Seleccionar semana">
- <button type="button" class="roadmap-step selected" data-week="0" aria-pressed="true"><div class="roadmap-top"><span class="week-no">Semana 01</span><span class="phase-dot"></span></div><h3>Análisis y diseño</h3><p>Requisitos · prototipo · arquitectura</p></button>
- <button type="button" class="roadmap-step" data-week="1" aria-pressed="false"><div class="roadmap-top"><span class="week-no">Semana 02</span><span class="phase-dot"></span></div><h3>Desarrollo</h3><p>Frontend · backend · BD</p></button>
- <button type="button" class="roadmap-step" data-week="2" aria-pressed="false"><div class="roadmap-top"><span class="week-no">Semana 03</span><span class="phase-dot"></span></div><h3>Integración y QA</h3><p>MVP · pruebas · correcciones</p></button>
- <button type="button" class="roadmap-step" data-week="3" aria-pressed="false"><div class="roadmap-top"><span class="week-no">Semana 04</span><span class="phase-dot"></span></div><h3>Entrega</h3><p>Estabilidad · despliegue · cierre</p></button>
- <button type="button" class="roadmap-step reserve" data-week="4" aria-pressed="false"><div class="roadmap-top"><span class="week-no">Semana 05</span><span class="phase-dot"></span></div><h3>Contingencia</h3><p>Margen de seguridad · sin nuevas funciones</p></button>
- </div><div class="roadmap-detail"><span></span> Las primeras 4 semanas organizan el trabajo principal. La quinta no se utiliza para aumentar el alcance.</div></section>
- <div class="section-heading"><div><h2>Plan de trabajo por semana</h2><p>Haz clic en cualquier bloque de la ruta para cambiar esta ficha.</p></div><span class="small-label">Detalle interactivo</span></div>
- <section class="panel focus-card" aria-live="polite"><div class="focus-head"><div><div class="focus-eyebrow" id="week-eyebrow">SEMANA 1 · PLAN PRINCIPAL</div><h3 id="week-title">Análisis y planificación</h3><p id="week-objective">Definir qué quieres construir y establecer las bases antes de programar.</p></div><div class="focus-badge" id="week-status">Diseño</div></div>
- <div class="focus-divider"></div><div class="focus-grid"><div><h4 class="mini-h">Mis tareas por área</h4><div class="worklist" id="week-work"></div></div><div><div class="deliverables"><h4 class="mini-h">Entregables de la semana</h4><ul id="week-deliverables"></ul></div><div class="gate" id="week-gate"><b>Condición para avanzar</b><span id="week-gate-text"></span></div></div></div></section>
- <div class="section-heading"><div><h2>Seguimiento de hitos</h2><p>Marca los objetivos cumplidos. El progreso queda guardado para el espacio compartido.</p></div><span class="small-label" id="progress-count">0 de 4 hitos completados</span></div>
- <section class="panel progress-panel"><div class="progress-head"><div><h3>Avance del plan principal</h3><p>Cuatro verificaciones para seguir tu avance.</p></div><div class="progress-label" id="progress-percent">0%</div></div><div class="progress-bg"><div class="progress-fill" id="progress-fill"></div></div><div class="checklist">
- <label class="check-item"><input type="checkbox" data-pf-field data-milestone="1"><span><b>Semana 1 · Alcance definido</b><small>Requisitos, prototipo y arquitectura confirmados.</small></span></label>
- <label class="check-item"><input type="checkbox" data-pf-field data-milestone="2"><span><b>Semana 2 · Primer flujo operativo</b><small>Frontend + backend + BD conectados.</small></span></label>
- <label class="check-item"><input type="checkbox" data-pf-field data-milestone="3"><span><b>Semana 3 · MVP revisado</b><small>Integrado, probado y con los cambios necesarios anotados.</small></span></label>
- <label class="check-item"><input type="checkbox" data-pf-field data-milestone="4"><span><b>Semana 4 · Entrega completada</b><small>Errores críticos corregidos y aplicación entregada.</small></span></label>
- </div></section>
- <div class="section-heading"><div><h2>Mi rutina semanal</h2><p>Rutina ligera para detectar bloqueos antes de que retrasen el proyecto.</p></div></div>
- <section class="routine"><div class="routine-item"><div class="day">LUNES · 30 MIN</div><b>Planificación semanal</b><p>Define tus prioridades y fechas para la semana.</p></div><div class="routine-item"><div class="day">MARTES A JUEVES · 10–15 MIN</div><b>Revisión diaria</b><p>Avances, bloqueos y próximo paso.</p></div><div class="routine-item"><div class="day">MIÉRCOLES · 20–30 MIN</div><b>Revisión técnica</b><p>Revisa dependencias y ajusta tus próximos pasos.</p></div><div class="routine-item"><div class="day">VIERNES · 30–45 MIN</div><b>Demo y revisión</b><p>Verificar entregables, ajustar plan y mostrar resultados.</p></div></section>
- <div class="callout"><div class="callout-icon">!</div><div><b>Regla de oro del proyecto</b><p>La fecha límite interna de desarrollo es el cierre de la semana 3. La semana 4 se destina a estabilización, QA y entrega. La quinta semana es una reserva por fallas, no una extensión automática para agregar funcionalidades.</p></div></div>
+ <section class="hero"><span class="eyebrow">02 / Plan semanal</span><h1>Un plan a la medida<br>de este proyecto.</h1><p>Añade las semanas que necesites. Cada una tiene sus fechas, objetivos y tareas; las fechas de entrega de las actividades se ajustan en Mi agenda.</p></section>
+ <section class="panel personal-plan">
+  <div class="section-heading"><div><h2>Semanas de trabajo</h2><p id="plan-count"></p></div><button class="action-btn primary" id="plan-add" data-pf-edit type="button">+ Agregar semana</button></div>
+  <div id="plan-weeks" class="plan-tabs" role="group" aria-label="Elegir semana"></div>
+  <p id="plan-empty" hidden>No hay semanas. Puedes organizar tus tareas directamente en la agenda.</p>
+  <div id="plan-detail" data-pf-form>
+   <label>Nombre de la semana<input id="week-title-input" maxlength="160"></label>
+   <div class="plan-dates"><label>Inicio<input id="week-start" type="date"></label><label>Final<input id="week-due" type="date"></label></div>
+   <label>Objetivos y plan de trabajo<textarea id="week-objective-input" rows="8" maxlength="10000"></textarea></label>
+   <label class="plan-check"><input id="week-done" type="checkbox"> Semana completada</label>
+   <label class="plan-check"><input id="week-optional" type="checkbox"> Semana de reserva (no cuenta en el avance)</label>
+   <div class="section-heading"><h3>Tareas de esta semana</h3><a id="plan-agenda-link" href="index.html">Ver agenda →</a></div>
+   <ul id="week-tasks"></ul>
+   <button class="action-btn" id="plan-remove" type="button" data-pf-edit>Eliminar semana</button>
+  </div>
+ </section>
+ <section class="panel progress-panel"><div class="progress-head"><div><h3>Avance del plan</h3><p id="progress-count"></p></div><div class="progress-label" id="progress-percent">0%</div></div><div class="progress-bg"><div class="progress-fill" id="progress-fill"></div></div></section>
+ <div class="footer"><span>Las semanas y sus fechas pertenecen solo al proyecto seleccionado.</span><a href="proyecto.html">Ir a la ficha del proyecto →</a></div>
 
-  <div class="footer"><span>Documento orientativo · Adapta las tareas y fechas al alcance de tu proyecto.</span><a href="proyecto.html">Ir a datos del proyecto →</a></div>
  </main>
 </div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script src="config.js"></script>
 <script src="assets/vendor/supabase.js"></script>
 <script src="assets/shared.js"></script>
-<script>
-(async function(){
- 'use strict';
- await ProjectFlow.ready();
- const $=(s,p=document)=>p.querySelector(s);
- const $$=(s,p=document)=>Array.from(p.querySelectorAll(s));
- let toastTimeout;
- function notice(text){const el=$('#toast');if(!el)return;el.textContent=text;el.classList.add('show');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>el.classList.remove('show'),2300)}
- function get(key,fallback){return ProjectFlow.get(key,fallback)}
- async function put(key,value){try{await ProjectFlow.set(key,value);return true}catch(e){notice(e.message);return false}}
- const weeks=[
-  {name:'Análisis y planificación',short:'Análisis y diseño',objective:'Definir qué quieres construir y establecer las bases antes de programar.',status:'Diseño',work:[['Organización','Anotar requisitos, fijar el alcance y organizar tus tareas y fechas.'],['Interfaz','Diseñar flujo de navegación, wireframes, prototipo y estructura de componentes.'],['Lógica','Definir arquitectura, reglas de negocio, API y criterios de autenticación si aplica.'],['Datos','Crear MER, modelo relacional, restricciones y primeras migraciones.'],['Integración','Preparar GitHub, reglas de ramas, entornos y contratos de API.']],deliverables:['Requisitos y alcance del proyecto definidos.','Prototipo y recorrido principal de usuario.','MER/esquema inicial y endpoints documentados.','Repositorio, agenda y fechas preparados.'],gate:'Al finalizar: alcance y diseño definidos; puedes comenzar el desarrollo.'},
-  {name:'Desarrollo principal',short:'Desarrollo',objective:'Construir primero las funcionalidades fundamentales, con integración temprana.',status:'Construcción',work:[['Organización','Verificar tareas, plazos, dependencias y bloqueos.'],['Interfaz','Implementar páginas, formularios, componentes y navegación.'],['Lógica','Crear endpoints, validaciones, servicios y reglas de negocio.'],['Datos','Implementar tablas, migraciones, consultas y datos de prueba.'],['Integración','Conectar el primer flujo real frontend–API–BD y ejecutar pruebas de humo.']],deliverables:['Primer flujo funcional completo, de pantalla a base de datos.','Funcionalidades principales en construcción y demostrables.','Entorno compartido y conexión validada.','Revisión del avance y registro de lo que falta.'],gate:'Al finalizar: existe un recorrido real funcionando, aunque el MVP todavía no esté completo.'},
-  {name:'Integración y pruebas',short:'Integración',objective:'Completar el MVP, verificar los flujos principales y preparar una versión para la revisión final.',status:'MVP listo',work:[['Organización','Revisar alcance comprometido y coordinar la revisión final.'],['Interfaz','Completar interfaces, estados de error y usabilidad.'],['Lógica','Cerrar funcionalidades, validaciones y pruebas de endpoints.'],['Datos','Comprobar integridad, migraciones y consistencia de consultas.'],['Integración','Ejecutar pruebas de extremo a extremo, armar versión y preparar la revisión final.']],deliverables:['MVP con funcionalidades comprometidas integradas.','Pruebas internas de los recorridos principales.','Versión de pruebas disponible para revisión final.','Registro de bugs y correcciones priorizadas.'],gate:'Al finalizar: congelar nuevas funcionalidades; desde aquí solo correcciones y estabilidad.'},
-  {name:'Estabilización y entrega',short:'Entrega',objective:'Corregir fallas, validar el resultado y entregar una versión estable.',status:'Entrega',work:[['Organización','Coordinar devoluciones de QA, verificación del resultado y cierre.'],['Interfaz','Corregir fallas visuales, de interacción y accesibilidad.'],['Lógica','Resolver errores funcionales, validación, seguridad y API.'],['Datos','Revisar integridad, respaldos y migraciones de producción.'],['Integración','Preparar despliegue, validar entorno final y ejecutar verificación integral.']],deliverables:['Aplicación funcionando en el entorno acordado.','Errores críticos y bloqueantes resueltos.','Documentación de uso y técnica mínima.','Demostración final y verificación del resultado.'],gate:'Al finalizar: la aplicación queda entregada si supera las pruebas y la revisión final.'},
-  {name:'Semana de contingencia',short:'Reserva',objective:'Margen reservado para incidentes o ajustes indispensables. No es una quinta semana de nuevas funciones.',status:'Reserva',reserve:true,work:[['Organización','Priorizar bloqueos reales, comunicar fechas y cerrar pendientes de aceptación.'],['Interfaz','Solucionar únicamente incidencias relevantes de interfaz.'],['Lógica','Atender fallas detectadas después de la revisión final.'],['Datos','Resolver problemas de datos, migración o respaldo, si aparecen.'],['Integración','Revalidar correcciones, despliegue y resultado final.']],deliverables:['Errores pendientes de severidad alta corregidos, si los hay.','Retesteo y verificación final.','Documentación y mejoras de uso si no surgen fallas.','Cierre administrativo del proyecto.'],gate:'No planificar funcionalidades nuevas en esta semana: solo contingencias y cierre.'}
- ];
- function setupPlan(){
-  const buttons=$$('[data-week]');if(!buttons.length)return;
-  function showWeek(i){const w=weeks[i];if(!w)return;
-   buttons.forEach(b=>{const active=Number(b.dataset.week)===i;b.classList.toggle('selected',active);b.setAttribute('aria-pressed',active?'true':'false')});
-   $('#week-eyebrow').textContent='SEMANA '+(i+1)+(w.reserve?' · RESERVA':' · PLAN PRINCIPAL');
-   $('#week-title').textContent=w.name;
-   $('#week-objective').textContent=w.objective;
-   const badge=$('#week-status');badge.textContent=w.status;badge.classList.toggle('reserve',!!w.reserve);
-   $('#week-work').replaceChildren(...w.work.map(([name,desc])=>{const div=document.createElement('div');div.className='work-row';const b=document.createElement('b');b.textContent=name;const p=document.createElement('p');p.textContent=desc;div.append(b,p);return div}));
-   $('#week-deliverables').replaceChildren(...w.deliverables.map(text=>{const li=document.createElement('li');li.textContent=text;return li}));
-   const gate=$('#week-gate');gate.classList.toggle('reserve',!!w.reserve);$('#week-gate-text').textContent=w.gate;
-  }
-  buttons.forEach(b=>b.addEventListener('click',()=>showWeek(Number(b.dataset.week))));showWeek(0);
-  const checks=$$('[data-milestone]'),stored=get('equipo14.hitos',{});
-  checks.forEach(c=>{c.checked=!!stored[c.dataset.milestone];c.addEventListener('change',()=>{if(!ProjectFlow.canEdit())return;const obj={};checks.forEach(x=>obj[x.dataset.milestone]=x.checked);put('equipo14.hitos',obj);updateProgress()})});
-  function updateProgress(){const n=checks.filter(c=>c.checked).length;$('#progress-percent').textContent=Math.round(n*100/checks.length)+'%';$('#progress-count').textContent=n+' de '+checks.length+' hitos completados';$('#progress-fill').style.width=(n*100/checks.length)+'%'}
-  updateProgress();
-  document.addEventListener('projectflow:updated',()=>{const current=get('equipo14.hitos',{});checks.forEach(c=>c.checked=!!current[c.dataset.milestone]);updateProgress()});
- }
- setupPlan();ProjectFlow.applyAccess();
- $$('[data-print]').forEach(b=>b.addEventListener('click',()=>window.print()));
-})();
-</script>
+<script src="assets/plan-data.js"></script>
+<script src="assets/projects.js"></script>
+<script src="assets/plan.js"></script>
 </body></html>

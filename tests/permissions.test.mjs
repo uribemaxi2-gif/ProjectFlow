@@ -25,9 +25,10 @@ before(async () => {
       ('${responsible}', 'responsible@example.test'),
       ('${outsider}', 'outsider@example.test');
   `);
-  await db.exec(sql);
+  await db.exec(await readFile(new URL('./fixtures/private-setup.sql', import.meta.url), 'utf8'));
   await db.query("select public.projectflow_authorize('leader@example.test', 'leader')");
   await db.query("select public.projectflow_authorize('responsible@example.test', 'responsible')");
+  await db.exec(sql);
 });
 
 after(() => db.close());
@@ -63,7 +64,7 @@ test('anonymous visitors can read shared data but cannot write, read members or 
 
 test('having an account without an authorized role only gives public read access', async () => {
   await asUser(outsider, async () => {
-    assert.equal((await db.query('select * from public.projectflow_state')).rows.length, 0);
+    await denied(() => db.query('select * from public.projectflow_state'));
     assert.equal((await getState()).role, 'viewer');
     await denied(() => save([update('equipo14.personas', null, {})]));
     await denied(() => db.query("select public.projectflow_authorize('outsider@example.test', 'leader')"));
@@ -126,11 +127,14 @@ test('invalid requests and duplicate or unknown sections are rejected', async ()
 });
 
 test('revoking an editor leaves public read access but blocks writes', async () => {
-  await db.query('update public.projectflow_members set active = false where user_id = $1', [responsible]);
+  await asUser(leader, async () => {
+    const id = (await getState()).project_id;
+    await rpc('projectflow_set_editor', [id, 'responsible@example.test', false]);
+  });
   await asUser(responsible, async () => {
     assert.equal((await getState()).role, 'viewer');
     await denied(() => save([update('equipo14.hitos', { 1: true }, { 1: false })]));
-    assert.equal((await db.query('select * from public.projectflow_state')).rows.length, 0);
+    await denied(() => db.query('select * from public.projectflow_state'));
   });
 });
 
@@ -150,13 +154,13 @@ test('anonymous readers receive saved data without member identities', async () 
   await asUser(null, async () => {
     const result = await getState();
     assert.deepEqual(result.data['equipo14.personas'], { 1: 'Equipo' });
-    assert.deepEqual(Object.keys(result).sort(), ['data', 'role', 'updated_at']);
+    assert.deepEqual(Object.keys(result).sort(), ['can_create', 'can_manage', 'data', 'name', 'project_id', 'role', 'updated_at']);
   }, 'anon');
 });
 
 test('public read migration upgrades private installations without losing data or permissions', async () => {
   const legacy = await readFile(new URL('./fixtures/private-setup.sql', import.meta.url), 'utf8');
-  const migration = await readFile(new URL('../supabase/public-read.sql', import.meta.url), 'utf8');
+  const migration = sql;
   await db.exec(legacy);
   await asUser(null, () => denied(getState), 'anon');
   const before = (await db.query('select data from public.projectflow_state')).rows[0].data;
@@ -175,5 +179,91 @@ test('public read migration upgrades private installations without losing data o
       ...before['equipo14.personas'], schedule: [{ id: '1', title: 'Mi actividad', dueDate: '2026-11-01', done: false }]
     })]);
     assert.equal(result.data['equipo14.personas'].schedule[0].title, 'Mi actividad');
+  });
+});
+
+async function rpc(name, args = []) {
+  const placeholders = args.map((_, index) => '$' + (index + 1)).join(',');
+  return (await db.query(`select public.${name}(${placeholders}) as result`, args)).rows[0].result;
+}
+let projectA, projectB;
+test('owners create independent projects with different durations and delivery dates', async () => {
+  await asUser(leader, async () => {
+    projectA = await rpc('projectflow_create_project', ['Proyecto corto', '2026-11-01', '2026-11-14', 2]);
+    projectB = await rpc('projectflow_create_project', ['Proyecto largo', '2026-12-01', '2027-02-15', 10]);
+    assert.notEqual(projectA.project_id, projectB.project_id);
+    assert.equal(projectA.data['equipo14.hitos'].weeks.length, 2);
+    assert.equal(projectB.data['equipo14.hitos'].weeks.length, 10);
+    assert.equal(projectA.data['projecthub.cliente.v1'].project.targetDate, '2026-11-14');
+    assert.equal(projectB.data['equipo14.hitos'].weeks[1].startDate, '2026-12-08');
+    const list = await rpc('projectflow_list_projects');
+    assert.equal(list.length, 3);
+    assert.equal((await getState()).project_id, list[0].id);
+    await rpc('projectflow_save_project', [projectA.project_id, JSON.stringify([
+      update('equipo14.personas', {schedule:[]}, {schedule:[{id:'task-a',title:'Solo A',dueDate:'2026-11-04',done:false}]})
+    ])]);
+    assert.deepEqual((await rpc('projectflow_get_project', [projectB.project_id])).data['equipo14.personas'], {schedule:[]});
+  });
+});
+test('public links read one project without revealing the project catalog or editor identities', async () => {
+  await asUser(null, async () => {
+    assert.equal((await rpc('projectflow_get_project', [projectA.project_id])).name, 'Proyecto corto');
+    await denied(() => rpc('projectflow_list_projects'));
+    await denied(() => rpc('projectflow_list_editors', [projectA.project_id]));
+    await denied(() => rpc('projectflow_create_project', ['Sin permiso', null, null, 2]));
+    await denied(() => rpc('projectflow_save_project', [projectA.project_id, '[]']));
+  }, 'anon');
+});
+test('an editor authorized for A cannot write B, grant access or create projects', async () => {
+  await asUser(leader, () => rpc('projectflow_set_editor', [projectA.project_id, 'responsible@example.test', true]));
+  await asUser(responsible, async () => {
+    assert.equal((await rpc('projectflow_get_project', [projectA.project_id])).role, 'responsible');
+    assert.equal((await rpc('projectflow_get_project', [projectB.project_id])).role, 'viewer');
+    assert.deepEqual((await rpc('projectflow_list_projects')).map(p => p.id), [projectA.project_id]);
+    await denied(() => rpc('projectflow_save_project', [projectB.project_id, JSON.stringify([update('equipo14.personas', {schedule:[]}, {})])]));
+    await denied(() => rpc('projectflow_set_editor', [projectA.project_id, 'outsider@example.test', true]));
+    await denied(() => rpc('projectflow_create_project', ['No autorizado', null, null, 4]));
+    await denied(() => rpc('projectflow_list_editors', [projectA.project_id]));
+    const state = await rpc('projectflow_get_project', [projectA.project_id]);
+    await rpc('projectflow_save_project', [projectA.project_id, JSON.stringify([update('equipo14.personas', state.data['equipo14.personas'], {schedule:[]})])]);
+    await denied(() => db.query('select * from public.projectflow_project_members'));
+  });
+});
+test('revocation is per project, survives repeated setup, and does not affect another grant', async () => {
+  await asUser(leader, async () => {
+    await rpc('projectflow_set_editor', [projectB.project_id, 'responsible@example.test', true]);
+    await rpc('projectflow_set_editor', [projectA.project_id, 'responsible@example.test', false]);
+    await assert.rejects(() => rpc('projectflow_set_editor', [projectA.project_id, 'leader@example.test', false]), e => e.code === '22023');
+  });
+  await db.exec(sql);
+  await asUser(responsible, async () => {
+    assert.equal((await rpc('projectflow_get_project', [projectA.project_id])).role, 'viewer');
+    assert.equal((await rpc('projectflow_get_project', [projectB.project_id])).role, 'responsible');
+    await denied(() => rpc('projectflow_save_project', [projectA.project_id, JSON.stringify([update('equipo14.personas', {schedule:[]}, {})])]));
+  });
+});
+test('invalid project IDs and dates fail without falling back to the original project', async () => {
+  await asUser(leader, async () => {
+    await assert.rejects(() => rpc('projectflow_get_project', ['ffffffff-ffff-ffff-ffff-ffffffffffff']), e => e.code === 'P0002');
+    for (const args of [['',null,null,1],['Mal',null,null,0],['Mal',null,null,105],['Mal','2026-12-01','2026-11-01',1]]) {
+      await assert.rejects(() => rpc('projectflow_create_project', args), e => e.code === '22023');
+    }
+  });
+});
+
+test('removing a week and unassigning its tasks is atomic; stale week assignments fail', async () => {
+  await asUser(leader, async () => {
+    const state = await rpc('projectflow_get_project', [projectB.project_id]);
+    const plan = state.data['equipo14.hitos'];
+    const task = {id:'dated-task',title:'Entrega',dueDate:'2026-12-04',done:false,weekId:plan.weeks[0].id};
+    await rpc('projectflow_save_project', [projectB.project_id, JSON.stringify([update('equipo14.personas',{schedule:[]},{schedule:[task]})])]);
+    const shorter = {weeks:plan.weeks.slice(1)};
+    await assert.rejects(() => rpc('projectflow_save_project', [projectB.project_id,JSON.stringify([update('equipo14.hitos',plan,shorter)])]), e => e.code === '40001');
+    const unassigned = {schedule:[{...task,weekId:''}]};
+    await rpc('projectflow_save_project', [projectB.project_id,JSON.stringify([
+      update('equipo14.hitos',plan,shorter), update('equipo14.personas',{schedule:[task]},unassigned)
+    ])]);
+    assert.equal((await rpc('projectflow_get_project',[projectB.project_id])).data['equipo14.personas'].schedule[0].dueDate,'2026-12-04');
+    await assert.rejects(() => rpc('projectflow_save_project',[projectB.project_id,JSON.stringify([update('equipo14.personas',unassigned,{schedule:[task]})])]), e => e.code === '40001');
   });
 });

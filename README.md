@@ -1,40 +1,39 @@
 # ProjectFlow
 
-Espacio personal con agenda por fechas, plan semanal y ficha del proyecto.
-Cualquier persona con el enlace puede consultar los datos. Solo el propietario
-y las cuentas autorizadas pueden agregar, editar, importar o eliminar información.
+Varios proyectos personales, cada uno con agenda, fechas de entrega, semanas de
+trabajo, ficha y registros independientes. Un selector cambia entre los proyectos
+a los que tienes acceso de edición; cada proyecto tiene su propio enlace de lectura.
 
-- `index.html`: actividades personales con fecha y estado de avance.
-- `cronograma.html`: plan de cuatro semanas más una de reserva, con hitos compartidos.
-- `proyecto.html`: ficha, solicitudes y tareas, revisiones, acuerdos, notas y respaldos.
+- `index.html`: actividades con fecha, semana asignada y estado.
+- `cronograma.html`: semanas editables, objetivos, fechas y progreso.
+- `proyecto.html`: ficha, solicitudes y tareas, revisiones, notas y respaldos.
+- `assets/projects.js`: crear proyectos, compartir enlaces y administrar editores.
 
-Las fechas y actividades sustituyen al equipo fijo de 14 personas. Las asignaciones
-anteriores se conservan y siguen incluidas en los respaldos.
+El propietario puede crear proyectos y autorizar editores **por proyecto**. Conocer
+el enlace permite consultar ese proyecto, sin conceder edición ni mostrar el catálogo
+personal. Las cuentas colaboradoras se crean una vez en Supabase Authentication.
 
-Lee [la guía de configuración y uso](SETUP-COMPARTIDO.md). Para actualizar una
-instalación privada existente, ejecuta [supabase/public-read.sql](supabase/public-read.sql)
-en el SQL Editor de Supabase. Publicar los archivos HTML no cambia esos permisos.
+## Configurar o actualizar
 
-Para desarrollo:
+Ejecuta **todo** [supabase/setup.sql](supabase/setup.sql) en el SQL Editor de Supabase.
+Sirve para instalaciones nuevas y actualiza las versiones de un único proyecto,
+incluida la versión privada. Conserva el proyecto original y sus autorizaciones.
+No hace falta ejecutar primero `public-read.sql`; ese archivo corresponde a la
+actualización anterior de lectura pública.
+
+[Guía de uso, permisos y actualización](SETUP-COMPARTIDO.md).
+
+## Desarrollo
 
 ```sh
 npm ci --cache /tmp/projectflow-npm --ignore-scripts
 python3 -m http.server 8000 --bind 127.0.0.1
-```
-
-El sitio es estático y no necesita compilación. La biblioteca de Supabase está
-incluida en `assets/vendor`; `npm run vendor` la reproduce desde la versión exacta
-del lockfile cuando se actualice la dependencia.
-
-Comprobaciones:
-
-```sh
 npm test
 npm run test:browser
 ```
 
-Las pruebas de permisos ejecutan el SQL en PostgreSQL mediante PGlite, incluyendo
-la actualización desde la instalación privada. Las pruebas de navegador necesitan
-Python con Playwright y Chromium en `/usr/bin/chromium`; simulan Supabase y no
-modifican el proyecto real. Cubren lectura pública, edición autorizada, agenda,
-fechas, actualización automática, conflictos, respaldos y acceso móvil.
+Sitio estático sin compilación. El SDK de Supabase está incluido en `assets/vendor`;
+`npm run vendor` lo reproduce desde la dependencia fijada en el lockfile.
+Las pruebas SQL usan PostgreSQL mediante PGlite. Las de navegador usan Python,
+Playwright y Chromium en `/usr/bin/chromium`, con una API de Supabase simulada.
+No escriben en Supabase real ni envían correos.

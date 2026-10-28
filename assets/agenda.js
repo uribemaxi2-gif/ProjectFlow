@@ -57,6 +57,13 @@
       row.className = 'agenda-row';
       control(row, 'Actividad', 'text', item, 'title');
       control(row, 'Fecha prevista', 'date', item, 'dueDate');
+      const weekLabel = document.createElement('label'), weekSelect = document.createElement('select');
+      weekLabel.textContent = 'Semana'; weekSelect.dataset.pfField = ''; weekSelect.id = `agenda-week-${item.id}`;
+      weekSelect.add(new Option('Sin semana', ''));
+      for (const week of ProjectFlowPlan.read()) weekSelect.add(new Option(week.title || 'Sin título', week.id));
+      weekSelect.value = item.weekId || '';
+      weekSelect.addEventListener('change', () => { if (ProjectFlow.canEdit()) { item.weekId = weekSelect.value; changed(); } });
+      weekLabel.append(weekSelect); row.append(weekLabel);
       control(row, 'Completada', 'checkbox', item, 'done');
       const remove = document.createElement('button');
       remove.type = 'button'; remove.className = 'action-btn'; remove.dataset.pfEdit = '';

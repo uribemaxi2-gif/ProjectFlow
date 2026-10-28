@@ -152,6 +152,8 @@ dialog{border:0;border-radius:20px;padding:0;width:min(700px,calc(100% - 28px));
 <script src="config.js"></script>
 <script src="assets/vendor/supabase.js"></script>
 <script src="assets/shared.js"></script>
+<script src="assets/plan-data.js"></script>
+<script src="assets/projects.js"></script>
 <script>
 (async()=>{'use strict';
 await ProjectFlow.ready();
@@ -291,6 +293,7 @@ async function importBackup(file){
   }
   if(valid(obj.workspaces?.milestones)){
    const clean={};for(const [k,v] of Object.entries(obj.workspaces.milestones)){if(/^[1-4]$/.test(k)&&typeof v==='boolean')clean[k]=v}
+   if(obj.workspaces.milestones.weeks!==undefined)clean.weeks=ProjectFlowPlan.normalize(obj.workspaces.milestones.weeks);
    updates['equipo14.hitos']=clean;
   }
   if(await save(updates)){

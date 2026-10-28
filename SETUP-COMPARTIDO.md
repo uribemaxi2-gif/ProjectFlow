@@ -1,118 +1,117 @@
-# Mi espacio personal: consulta con enlace y edición autorizada
+# Varios proyectos con fechas y permisos independientes
 
-## Actualizar la instalación anterior
+## Activar esta versión
 
-Si ya ejecutaste el SQL de la versión privada y creaste tu cuenta:
-
-1. Abre [supabase/public-read.sql](supabase/public-read.sql) y copia todo su contenido.
+1. Copia **todo** [supabase/setup.sql](supabase/setup.sql).
 2. En tu proyecto de Supabase, abre **SQL Editor → New query**, pega el contenido
    y pulsa **Run**.
-3. Cuando aparezca **Success**, recarga ProjectFlow. Una ventana privada debe
-   permitir consultar la agenda, el plan semanal y el proyecto sin iniciar sesión.
+3. Cuando termine correctamente, recarga ProjectFlow.
 
-La actualización conserva los datos, las cuentas y sus autorizaciones. Se puede
-repetir. No es necesario volver a crear tu usuario ni cambiar la clave pública.
-La web mantiene disponible el inicio de sesión mientras este paso esté pendiente.
+Este SQL sustituye al paso anterior de `public-read.sql`: no necesitas ejecutarlos
+por separado. Sirve tanto si ya activaste la lectura pública como si aún tienes
+la primera versión privada. Se puede repetir sin borrar datos ni reactivar permisos
+retirados. El proyecto anterior sigue disponible en el enlace habitual.
 
-## Consultar y trabajar
+La web conserva el acceso al proyecto anterior mientras falte el SQL. Crear y
+cambiar de proyecto requiere completar esta actualización en Supabase.
 
-Comparte la dirección habitual de GitHub Pages. Quien la abra podrá ver los datos,
-buscar, filtrar, abrir el detalle de los registros y descargar una copia. Los
-visitantes no necesitan crear una cuenta. La vista indica **Solo lectura**.
-Todo el contenido guardado en este espacio es consultable con el enlace.
-
-Para editar, pulsa **Entrar para editar** y usa la cuenta creada en
-**Authentication → Users**. No es la cuenta con la que administras Supabase.
-Solo las cuentas activas que el propietario autorice pueden modificar información.
-Los permisos se aplican en la base de datos, además de en los formularios.
-
-- **Mi agenda:** actividades personales con nombre, fecha prevista y casilla de
-  completada. Puedes añadir o eliminar actividades. No asigna tareas a otras
-  personas ni concede permisos de edición. Los ejemplos iniciales son editables.
-- **Plan semanal:** conserva las cuatro semanas y una de reserva, organizadas por
-  tus áreas de trabajo. Marca los hitos a medida que los completes.
-- **Mi proyecto:** ficha, solicitudes y tareas, revisiones, acuerdos y notas.
-  Usa **Ver detalle** para consultar los campos completos en modo de lectura.
-
-La agenda y los hitos se guardan al modificarlos. La ficha y los registros usan
-sus botones de guardado. Espera **Guardado compartido** antes de cerrar.
-Si falla la conexión, los cambios pendientes permanecen en pantalla y se indica
-que aún no están compartidos.
-
-La vista de lectura carga los cambios automáticamente cada 30 segundos mientras
-está visible. Quien esté editando recibe un aviso y puede pulsar **Actualizar**.
-Si dos editores cambian la misma sección, se rechaza el guardado obsoleto para
-no sobrescribir cambios. Conserva lo escrito, actualiza y vuelve a aplicarlo.
-
-## Autorizar a otra persona para editar
-
-1. En **Authentication → Users → Add user → Create new user**, crea su cuenta
-   con correo y contraseña. Activa **Auto Confirm User** si aparece.
-2. Desde **SQL Editor**, ejecuta esta consulta con su correo real:
-
-   ```sql
-   select public.projectflow_authorize('colaborador@ejemplo.com', 'responsible');
-   ```
-
-3. Esa persona usa el mismo enlace y pulsa **Entrar para editar**.
-
-Tu propia cuenta puede seguir con el rol `leader`. Ambos roles permiten editar;
-ninguno permite autorizar cuentas desde el navegador. Las cuentas nuevas que no
-autorices tienen únicamente el mismo acceso de lectura que cualquier visitante.
-
-Para retirar el permiso de edición conservando los registros:
+Si es una instalación completamente nueva, crea tu cuenta en
+**Authentication → Users → Add user → Create new user**, con correo y contraseña.
+Activa **Auto Confirm User** si aparece. Después autorízala desde SQL Editor:
 
 ```sql
-update public.projectflow_members set active = false
-where user_id = (
-  select id from auth.users where email = 'persona@ejemplo.com'
-);
+select public.projectflow_authorize('mi-correo@ejemplo.com', 'leader');
 ```
 
-La siguiente escritura se rechazará. En la comprobación de permisos o al intentar
-guardar, una página abierta pedirá volver a cargar el acceso. La lectura seguirá
-disponible con el enlace.
+`config.js` usa únicamente la URL y la clave **Publishable**. Nunca introduzcas
+contraseñas ni claves `secret` o `service_role` en el frontend.
 
-## Datos anteriores y respaldos
+## Crear y cambiar de proyecto
 
-Las asignaciones del equipo anterior se mantienen en **Mi agenda → Datos
-conservados del proyecto anterior**. Las actividades nuevas se guardan junto a
-esos datos. No se convierten nombres anteriores en fechas ni se borran registros.
+Entra con tu cuenta de propietario y pulsa **+ Nuevo proyecto**. Indica:
 
-Si los datos antiguos solo estaban en un navegador:
+- Nombre.
+- Fecha de inicio y fecha de entrega, si ya las conoces.
+- Número inicial de semanas (de 1 a 104).
 
-1. Abre la misma dirección con ese navegador e inicia sesión para editar.
-2. Usa **Descargar datos anteriores** si aparece en la barra superior.
-3. Desde **Mi proyecto → Ficha del proyecto**, usa **Importar respaldo**.
-4. Revisa la confirmación: se reemplazan los registros compartidos y las secciones
-   incluidas en el archivo. Descarga antes un respaldo actual si necesitas conservarlo.
+Cada proyecto empieza con su propia agenda vacía, ficha y plan. El número de semanas
+no obliga a tener un número fijo de tareas. El selector **Proyecto** cambia entre
+los proyectos en los que puedes editar. La página conserva la selección al navegar
+entre agenda, plan semanal y ficha.
 
-Los respaldos nuevos incluyen la agenda con fechas y los hitos. Los respaldos
-antiguos siguen siendo compatibles. No se importa nada automáticamente.
+Puedes cambiar nombre, inicio y entrega en **Mi proyecto → Ficha del proyecto**.
+Esas fechas son referencias del proyecto: las fechas de semanas y tareas siguen
+siendo independientes y no se reprograman automáticamente.
 
-## Instalación nueva
+## Organizar semanas y tareas
 
-1. Crea el proyecto de Supabase y ejecuta todo [supabase/setup.sql](supabase/setup.sql)
-   desde **SQL Editor**. Incluye la lectura pública; no hace falta aplicar el otro SQL.
-2. Crea tu cuenta en **Authentication → Users**, como en los pasos anteriores.
-3. Autorízala desde **SQL Editor**:
+**Mi agenda** permite agregar actividades, ponerles una fecha de entrega y asignarlas
+a una semana o dejarlas sin semana. Cada actividad tiene su estado de completada.
+Hay un máximo de 500 actividades por proyecto.
 
-   ```sql
-   select public.projectflow_authorize('mi-correo@ejemplo.com', 'leader');
-   ```
+En **Plan semanal** puedes agregar o eliminar semanas, cambiar su nombre, objetivos,
+inicio y final, marcar su avance o indicar que son de reserva. Las semanas de reserva
+no cuentan para el porcentaje de progreso. Eliminar una semana conserva sus tareas y
+fechas, dejándolas sin semana asignada.
 
-4. Completa `config.js` con la URL y la clave **Publishable** del proyecto.
-   Nunca uses contraseñas, claves `secret` o `service_role` en el frontend.
-5. Publica el repositorio con el workflow de GitHub Pages.
+El proyecto original conserva el plan de cuatro semanas más una de reserva como
+punto de partida editable. Las asignaciones antiguas de personas siguen incluidas
+en los respaldos y en **Mi agenda → Datos conservados del proyecto anterior**.
 
-## Verificar el acceso real
+## Compartir y autorizar editores
 
-1. Espera a que **Deploy static content to Pages** termine en Actions.
-2. Abre una ventana privada: debes poder consultar las tres páginas sin cuenta.
-3. Entra como editor en otro navegador, guarda una actividad y una fecha.
-4. En la ventana privada, pulsa **Actualizar** o espera 30 segundos y comprueba
-   que aparecen. Los campos deben seguir en modo de lectura.
-5. Pulsa **Salir** en la cuenta editora: debes volver a la consulta sin poder editar.
+**Copiar enlace de lectura** crea un enlace al proyecto seleccionado. Quien lo
+reciba podrá consultar sus datos sin cuenta, buscar, filtrar y descargar una copia.
+No verá tu selector con otros proyectos. Todo el contenido de ese proyecto es
+consultable con su enlace.
 
-Las pruebas locales usan una API simulada para el navegador y PostgreSQL local
-para los permisos. No sustituyen esta comprobación contra tu proyecto de Supabase.
+Para permitir que alguien edite:
+
+1. Crea su cuenta una sola vez en **Supabase → Authentication → Users** con
+   correo y contraseña. La cuenta de la aplicación es distinta a la del panel de Supabase.
+2. Abre el proyecto que quieres compartir como propietario.
+3. Pulsa **Quién puede editar**, escribe el correo de esa cuenta y pulsa
+   **Autorizar edición**.
+4. Esa persona entra con **Entrar para editar** en el enlace del proyecto.
+
+Autorizar a alguien en un proyecto **no** le concede edición en los demás.
+Los editores no pueden crear proyectos, conceder permisos ni ver la lista de editores.
+Para retirar el permiso, abre **Quién puede editar → Quitar permiso** en ese proyecto.
+La siguiente escritura se rechazará. La lectura seguirá disponible con el enlace.
+
+Los permisos del proyecto original se migran: las cuentas `leader` son propietarios
+y pueden crear proyectos; las cuentas `responsible` solo pueden editar ese proyecto.
+La administración de acceso posterior se hace por proyecto desde la web.
+
+## Guardado, cambios y respaldos
+
+La agenda y el plan se guardan al modificarlos. La ficha y los registros usan sus
+botones. Espera **Guardado compartido** antes de salir o cambiar de proyecto.
+Si falla el guardado, se conserva el borrador y se muestra el error.
+
+La consulta se actualiza cada 30 segundos mientras está visible. Los editores reciben
+un aviso y pueden pulsar **Actualizar**. Si alguien guardó cambios sobre la misma
+sección, se rechaza el guardado obsoleto para evitar sobrescrituras.
+
+Los respaldos JSON corresponden **solo al proyecto seleccionado**: incluyen ficha,
+registros, agenda, fechas y semanas. Importar reemplaza esas secciones en ese mismo
+proyecto; no modifica otros proyectos ni sus permisos. Los respaldos antiguos siguen
+siendo compatibles. Descarga una copia antes de reemplazar información.
+
+Para rescatar datos que solo estaban en un navegador, entra allí como editor y usa
+**Descargar datos anteriores**, si aparece. Luego importa el archivo en el proyecto
+que corresponda. Nada se importa automáticamente.
+
+## Comprobar el servicio real
+
+1. Espera a que el despliegue de Pages termine correctamente.
+2. Ejecuta el SQL y entra como propietario.
+3. Crea dos proyectos con distinta duración y guarda una tarea en el primero.
+4. Cambia al segundo: no debe aparecer la tarea del primero.
+5. Autoriza un colaborador solo en el primero y comprueba que en el segundo
+   tenga únicamente lectura.
+6. Abre el enlace de un proyecto en una ventana privada: debe permitir leer,
+   sin mostrar el catálogo ni los botones de edición.
+
+Las pruebas locales verifican PostgreSQL y el navegador con una API simulada;
+no sustituyen esta comprobación contra tu Supabase real.

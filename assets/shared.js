@@ -10,6 +10,7 @@
     return keys.length === Object.keys(b).length && keys.every(key => Object.hasOwn(b, key) && equal(a[key], b[key]));
   };
   let client, cache = {}, unlocked = false, editor = false, conflict = false, queue = Promise.resolve(), pending = 0;
+  let projectId = new URLSearchParams(location.search).get('project'), projectInfo = {}, multi = true;
   const dirty = new Map();
   let generation = 0, completeReady;
   const ready = new Promise(resolve => { completeReady = resolve; });
@@ -66,7 +67,7 @@
     return items.map(item => {
       if (!item || typeof item.id !== 'string' || !/^[\w-]{1,80}$/.test(item.id) || ids.has(item.id) || typeof item.title !== 'string') throw new Error('Actividad no válida.');
       ids.add(item.id);
-      return { id: item.id, title: item.title.slice(0, 160), dueDate: /^\d{4}-\d{2}-\d{2}$/.test(item.dueDate || '') ? item.dueDate : '', done: item.done === true };
+      return { id: item.id, title: item.title.slice(0, 160), dueDate: /^\d{4}-\d{2}-\d{2}$/.test(item.dueDate || '') ? item.dueDate : '', done: item.done === true, weekId: typeof item.weekId === 'string' && /^[\w-]{1,80}$/.test(item.weekId) ? item.weekId : '' };
     });
   }
   function errorText(error) {
@@ -75,11 +76,40 @@
     return 'No se pudo conectar o guardar. Comprueba tu conexión y vuelve a intentarlo. Tus cambios todavía no están compartidos.';
   }
   async function requestState() {
-    const { data, error } = await client.rpc('projectflow_get_state');
-    if (error) throw error;
-    if (!data || !['leader', 'responsible', 'viewer'].includes(data.role) || !data.data || typeof data.data !== 'object' || Array.isArray(data.data)) {
-      throw new Error('Estado no válido');
+    if (projectId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId)) throw new Error('El enlace del proyecto no es válido.');
+    let result = await client.rpc(multi ? 'projectflow_get_project' : 'projectflow_get_state', multi ? { p_project_id: projectId } : {});
+    if (result.error?.code === 'PGRST202' && !projectId) {
+      multi = false;
+      result = await client.rpc('projectflow_get_state');
     }
+    const { data, error } = result;
+    if (error) throw error;
+    if (!data || !['leader', 'responsible', 'viewer'].includes(data.role) || !data.data || typeof data.data !== 'object' || Array.isArray(data.data)) throw new Error('Estado no válido');
+    return data;
+  }
+  function navigate(url) {
+    if (pending) { status('Espera a que termine el guardado.'); return false; }
+    if (dirty.size && !confirm('Hay cambios sin guardar. ¿Descartarlos y cambiar de proyecto?')) return false;
+    dirty.clear(); location.href = url; return true;
+  }
+  function projectUrl(id = projectId, page = 'index.html') {
+    const url = new URL(page, location.href);
+    if (id) url.searchParams.set('project', id);
+    return url.href;
+  }
+  function preserveProjectLinks() {
+    if (!projectId) return;
+    document.querySelectorAll('a[href]').forEach(anchor => {
+      const url = new URL(anchor.getAttribute('href'), location.href);
+      if (url.origin === location.origin && /\/(index|cronograma|proyecto)\.html$/.test(url.pathname)) {
+        url.searchParams.set('project', projectId); anchor.href = url.href;
+      }
+    });
+  }
+  async function projectRpc(name, params = {}) {
+    if (!multi) throw new Error('Primero completa la actualización de proyectos múltiples en Supabase.');
+    const { data, error } = await client.rpc(name, params);
+    if (error) throw new Error(error.message || errorText(error));
     return data;
   }
   function get(key, fallback) {
@@ -102,7 +132,7 @@
         const updates = Object.entries(snapshot).map(([key, value]) => ({
           key, expected: Object.hasOwn(cache, key) ? copy(cache[key]) : null, value
         }));
-        const { error } = await client.rpc('projectflow_save', { p_updates: updates });
+        const { error } = await client.rpc(multi ? 'projectflow_save_project' : 'projectflow_save', multi ? { p_project_id: projectId, p_updates: updates } : { p_updates: updates });
         if (error) throw error;
         // Only advance baselines for the sections we actually wrote. Advancing
         // another section could hide changes that its visible form never saw.
@@ -110,6 +140,7 @@
           cache[key] = copy(value);
           if (dirty.get(key) === versions.get(key)) clean(key);
         }
+        document.dispatchEvent(new Event('projectflow:saved'));
         status('Guardado compartido');
       } catch (error) {
         if (error?.code === '40001') conflict = true;
@@ -184,6 +215,9 @@
     // A fresh login after session expiry must not reuse the previous user's DOM.
     if (find('pf-session')) { dirty.clear(); location.reload(); return; }
     cache = copy(state.data);
+    projectId = state.project_id || projectId;
+    projectInfo = { id: projectId, name: state.name || cache[KEYS[2]]?.project?.name || 'Mi proyecto', canManage: !!state.can_manage, canCreate: !!state.can_create, multi, signedIn: !!session };
+    preserveProjectLinks();
     unlocked = true;
     editor = ['leader', 'responsible'].includes(state.role);
     applyAccess();
@@ -204,11 +238,12 @@
       find('pf-login').hidden = false;
       find('pf-retry').hidden = false;
       const denied = error?.code === '42501' || error?.status === 401 || error?.status === 403;
-      message(denied ? 'La consulta con el enlace todavía no está disponible. Puedes entrar con una cuenta autorizada.' : 'No se pudieron cargar los datos. Comprueba tu conexión y pulsa Reintentar.', true);
+      message(error?.code === 'P0002' ? 'El proyecto de este enlace no existe. Revisa la dirección que te compartieron.' : denied ? 'La consulta con el enlace todavía no está disponible. Puedes entrar con una cuenta autorizada.' : 'No se pudieron cargar los datos. Comprueba tu conexión y pulsa Reintentar.', true);
     }
   }
   window.ProjectFlow = Object.freeze({
-    ready: () => ready, get, set: (key, value) => setMany({ [key]: value }), setMany, markDirty, clean, canEdit, applyAccess, normalizeSchedule
+    ready: () => ready, get, set: (key, value) => setMany({ [key]: value }), setMany, markDirty, clean, canEdit, applyAccess, normalizeSchedule,
+    project: () => ({ ...projectInfo, name: cache[KEYS[2]]?.project?.name || projectInfo.name }), projectUrl, navigate, projectRpc
   });
   window.addEventListener('beforeunload', event => {
     if (unlocked && (dirty.size || pending)) { event.preventDefault(); event.returnValue = ''; }

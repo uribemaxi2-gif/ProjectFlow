@@ -1,4 +1,5 @@
 html.pf-locked .layout, html.pf-locked #pf-session, html.pf-locked dialog { display: none !important; }
+html.pf-locked #pf-projects { display: none !important; }
 html.pf-readonly [data-pf-edit] { display: none !important; }
 html.pf-readonly [data-pf-field], html.pf-readonly [data-pf-form] input, html.pf-readonly [data-pf-form] textarea, html.pf-readonly [data-pf-form] select { color: #26334d; background: #f5f7fb; opacity: 1; }
 #pf-gate { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: #f5f7fb; color: #172033; font-family: system-ui, sans-serif; }
@@ -30,3 +31,29 @@ html.pf-readonly [data-pf-field], html.pf-readonly [data-pf-form] input, html.pf
   .sidebar { overflow-y: visible; }
 }
 @media print { #pf-session, #pf-gate { display: none !important; } }
+#pf-projects { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; background: #eef0ff; color: #26334d; border-bottom: 1px solid #dce0f0; font: 14px system-ui, sans-serif; }
+#pf-projects label { font-weight: 600; margin-right: 8px; }
+#pf-project-select { max-width: min(320px, 85vw); }
+#pf-project-message { margin: 0; width: 100%; overflow-wrap: anywhere; }
+#pf-project-message:empty { display: none; }
+.pf-project-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+#pf-projects button, #pf-projects select, #pf-project-dialog button, #pf-access-dialog button { font: inherit; padding: 10px 12px; border: 1px solid #bfc7db; border-radius: 8px; background: white; color: #26334d; cursor: pointer; }
+#pf-project-dialog, #pf-access-dialog { box-sizing: border-box; width: min(580px, 94vw); max-height: 90dvh; overflow: auto; margin: auto; padding: 24px; border: 1px solid #dce0f0; border-radius: 16px; color: #26334d; background: white; font: 14px system-ui, sans-serif; }
+#pf-project-dialog::backdrop, #pf-access-dialog::backdrop { background: #17203388; }
+#pf-project-dialog label, #pf-access-dialog label { display: flex; flex-direction: column; gap: 8px; margin: 18px 0; }
+#pf-project-dialog input, #pf-access-dialog input { min-width: 0; width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #bfc7db; border-radius: 8px; font: inherit; }
+.pf-project-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+#pf-editor-list { list-style: none; padding: 0; }
+#pf-editor-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 0; border-bottom: 1px solid #e5e9f1; overflow-wrap: anywhere; }
+.personal-plan { margin: 24px 0; padding: 24px; }
+.plan-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 20px 0; }
+.plan-tabs button { border: 1px solid #bfc7db; border-radius: 8px; padding: 10px; background: white; cursor: pointer; color: #26334d; }
+.plan-tabs button[aria-pressed=true] { background: #5556d9; color: white; border-color: #5556d9; }
+#plan-detail > label, .plan-dates label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; margin: 14px 0; }
+#plan-detail input:not([type=checkbox]), #plan-detail textarea { min-width: 0; width: 100%; padding: 12px; border: 1px solid #cbd2e0; border-radius: 8px; font: inherit; color: #26334d; background: white; }
+.plan-dates { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+#plan-detail .plan-check { flex-direction: row; align-items: center; min-height: 36px; }
+.plan-check input { width: 18px; height: 18px; accent-color: #5556d9; }
+#week-tasks { padding-left: 20px; margin: 20px 0; }
+#week-tasks li { margin-bottom: 10px; }
+@media (max-width: 750px) { .personal-plan { padding: 16px; } #pf-projects { padding: 12px; } }
