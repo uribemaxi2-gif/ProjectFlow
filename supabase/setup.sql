@@ -33,6 +33,19 @@ create table if not exists public.projectflow_project_members (
   active boolean not null default true,
   primary key (project_id, user_id)
 );
+create table if not exists public.projectflow_invitations (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projectflow_state(project_id) on delete cascade,
+  email text not null check (email = lower(trim(email)) and length(email) between 3 and 254),
+  invited_by uuid not null references auth.users(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'revoked')),
+  prepared_at timestamptz not null default now(),
+  expires_at timestamptz not null default now() + interval '7 days',
+  accepted_by uuid references auth.users(id) on delete set null,
+  unique (project_id, email)
+);
+alter table public.projectflow_invitations enable row level security;
+revoke all on public.projectflow_invitations from public, anon, authenticated;
 -- Migrar una sola vez los permisos del proyecto original. Repetir no reactiva cuentas.
 insert into public.projectflow_project_members(project_id, user_id, can_manage, active)
   select s.project_id, m.user_id, m.role = 'leader', m.active
@@ -223,6 +236,12 @@ begin
   if exists (select 1 from public.projectflow_project_members where project_id = p_project_id and user_id = target_user and can_manage) then
     raise exception 'No se modifica al propietario desde esta opción.' using errcode = '22023';
   end if;
+  -- Bloquear la invitación antes del miembro evita que una aceptación concurrente
+  -- reactive un permiso retirado. El mismo orden se usa al aceptar.
+  if not p_enabled then
+    update public.projectflow_invitations set status = 'revoked'
+      where project_id = p_project_id and email = lower(trim(p_email));
+  end if;
   insert into public.projectflow_project_members(project_id,user_id,active) values (p_project_id,target_user,p_enabled)
     on conflict (project_id,user_id) do update set active = excluded.active;
   return public.projectflow_list_editors(p_project_id);
@@ -230,6 +249,125 @@ end;
 $$;
 revoke all on function public.projectflow_set_editor(uuid,text,boolean) from public, anon;
 grant execute on function public.projectflow_set_editor(uuid,text,boolean) to authenticated;
+
+create or replace function public.projectflow_prepare_invitation(p_project_id uuid, p_email text)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare recipient text := lower(trim(p_email)); invitation public.projectflow_invitations;
+begin
+  -- Serializar la preparación de invitaciones de este proyecto.
+  perform 1 from public.projectflow_project_members where project_id = p_project_id
+    and user_id = auth.uid() and active and can_manage for update;
+  if not found then raise exception 'Solo el propietario puede invitar.' using errcode = '42501'; end if;
+  if recipient is null or length(recipient) > 254 or recipient !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then
+    raise exception 'Escribe un correo válido.' using errcode = '22023';
+  end if;
+  if exists (select 1 from public.projectflow_project_members m join auth.users u on u.id = m.user_id
+    where m.project_id = p_project_id and lower(u.email) = recipient and m.can_manage) then
+    raise exception 'Esa cuenta ya es propietaria del proyecto.' using errcode = '22023';
+  end if;
+  select * into invitation from public.projectflow_invitations where project_id = p_project_id and email = recipient for update;
+  if found and invitation.prepared_at > now() - interval '1 minute' then
+    raise exception 'Espera un minuto antes de volver a enviar a ese correo.' using errcode = '22023';
+  end if;
+  if (select count(*) from public.projectflow_invitations where invited_by = auth.uid()
+      and prepared_at > now() - interval '1 hour') >= 20 then
+    raise exception 'Alcanzaste el límite de invitaciones. Inténtalo más tarde.' using errcode = '22023';
+  end if;
+  insert into public.projectflow_invitations(project_id, email, invited_by) values (p_project_id, recipient, auth.uid())
+    on conflict (project_id, email) do update set id = gen_random_uuid(), invited_by = auth.uid(),
+      status = 'pending', prepared_at = now(), expires_at = now() + interval '7 days', accepted_by = null
+    returning * into invitation;
+  return jsonb_build_object('id', invitation.id, 'email', invitation.email,
+    'project_id', invitation.project_id, 'expires_at', invitation.expires_at);
+end;
+$$;
+revoke all on function public.projectflow_prepare_invitation(uuid,text) from public, anon;
+grant execute on function public.projectflow_prepare_invitation(uuid,text) to authenticated;
+
+create or replace function public.projectflow_list_invitations(p_project_id uuid)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+begin
+  if not exists (select 1 from public.projectflow_project_members where project_id = p_project_id
+    and user_id = auth.uid() and active and can_manage) then
+    raise exception 'Solo el propietario puede consultar invitaciones.' using errcode = '42501';
+  end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object('id', id, 'email', email,
+    'expires_at', expires_at, 'expired', expires_at <= now()) order by prepared_at desc), '[]'::jsonb)
+    from public.projectflow_invitations where project_id = p_project_id and status = 'pending');
+end;
+$$;
+revoke all on function public.projectflow_list_invitations(uuid) from public, anon;
+grant execute on function public.projectflow_list_invitations(uuid) to authenticated;
+
+create or replace function public.projectflow_cancel_invitation(p_project_id uuid, p_invitation_id uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if not exists (select 1 from public.projectflow_project_members where project_id = p_project_id
+    and user_id = auth.uid() and active and can_manage) then
+    raise exception 'Solo el propietario puede cancelar invitaciones.' using errcode = '42501';
+  end if;
+  update public.projectflow_invitations set status = 'revoked'
+    where project_id = p_project_id and id = p_invitation_id and status = 'pending';
+  if not found then raise exception 'La invitación cambió. Actualiza la lista; si ya aceptó, retira su permiso.' using errcode = '22023'; end if;
+end;
+$$;
+revoke all on function public.projectflow_cancel_invitation(uuid,uuid) from public, anon;
+grant execute on function public.projectflow_cancel_invitation(uuid,uuid) to authenticated;
+
+create or replace function public.projectflow_get_invitation(p_invitation_id uuid)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare invitation public.projectflow_invitations; recipient auth.users;
+begin
+  select * into recipient from auth.users where id = auth.uid();
+  select * into invitation from public.projectflow_invitations where id = p_invitation_id;
+  if invitation.id is null then raise exception 'El enlace de invitación ya no es válido.' using errcode = '22023'; end if;
+  if recipient.id is null or recipient.email_confirmed_at is null or lower(recipient.email) is distinct from invitation.email then
+    raise exception 'Esta invitación no corresponde a tu cuenta o tu correo no está confirmado.' using errcode = '42501';
+  end if;
+  if invitation.status = 'revoked' or (invitation.status = 'pending' and invitation.expires_at <= now()) then
+    raise exception 'La invitación venció o fue cancelada. Pide al propietario que la envíe de nuevo.' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.projectflow_project_members where project_id = invitation.project_id
+      and user_id = invitation.invited_by and active and can_manage) then
+    raise exception 'El propietario ya no puede conceder este acceso.' using errcode = '42501';
+  end if;
+  if invitation.status = 'accepted' and (invitation.accepted_by is distinct from auth.uid() or not public.projectflow_can_edit_project(invitation.project_id)) then
+    raise exception 'Este permiso ya no está activo.' using errcode = '42501';
+  end if;
+  return jsonb_build_object('project_id', invitation.project_id, 'email', invitation.email,
+    'name', (select coalesce(nullif(data #>> '{projecthub.cliente.v1,project,name}', ''), 'Mi proyecto')
+      from public.projectflow_state where project_id = invitation.project_id),
+    'accepted', invitation.status = 'accepted', 'has_password', coalesce(recipient.encrypted_password, '') <> '');
+end;
+$$;
+revoke all on function public.projectflow_get_invitation(uuid) from public, anon;
+grant execute on function public.projectflow_get_invitation(uuid) to authenticated;
+
+create or replace function public.projectflow_accept_invitation(p_invitation_id uuid)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare invitation public.projectflow_invitations; result jsonb;
+begin
+  select * into invitation from public.projectflow_invitations where id = p_invitation_id;
+  if not found then raise exception 'El enlace de invitación ya no es válido.' using errcode = '22023'; end if;
+  -- Mantener vigente el permiso del emisor hasta que termine la aceptación.
+  perform 1 from public.projectflow_project_members where project_id = invitation.project_id
+    and user_id = invitation.invited_by and active and can_manage for share;
+  if not found then raise exception 'El propietario ya no puede conceder acceso.' using errcode = '42501'; end if;
+  select * into invitation from public.projectflow_invitations where id = p_invitation_id for update;
+  result := public.projectflow_get_invitation(p_invitation_id);
+  if invitation.status = 'accepted' then return result; end if;
+  if not (result->>'has_password')::boolean then
+    raise exception 'Crea primero tu contraseña personal.' using errcode = '22023';
+  end if;
+  insert into public.projectflow_project_members(project_id, user_id, can_manage, active)
+    values (invitation.project_id, auth.uid(), false, true)
+    on conflict (project_id, user_id) do update set active = true;
+  update public.projectflow_invitations set status = 'accepted', accepted_by = auth.uid() where id = p_invitation_id;
+  return public.projectflow_get_invitation(p_invitation_id);
+end;
+$$;
+revoke all on function public.projectflow_accept_invitation(uuid) from public, anon;
+grant execute on function public.projectflow_accept_invitation(uuid) to authenticated;
 
 -- Alta del propietario y permisos del proyecto original: solo desde SQL Editor.
 create or replace function public.projectflow_authorize(member_email text, member_role text)

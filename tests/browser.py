@@ -39,6 +39,11 @@ class Backend:
         self.multi = True
         self.default_id = '20000000-0000-0000-0000-000000000001'
         self.projects = {}
+        self.accounts = {email: {'has_password': True} for email in (*self.roles, 'outsider@example.test')}
+        self.invitations = {}
+        self.emails = []
+        self.fail_email = False
+        self.invitations_available = True
 
     @staticmethod
     def jwt(email):
@@ -65,12 +70,21 @@ class Backend:
                 respond(400, {'error': 'invalid_grant', 'error_description': 'Invalid login credentials'})
                 return
             email = body['email']
+            self.accounts.setdefault(email, {'has_password': True})
             respond(200, {'access_token': self.jwt(email), 'refresh_token': 'test-refresh-token',
                           'token_type': 'bearer', 'expires_in': 3600, 'expires_at': int(time.time()) + 3600,
                           'user': {'id': email, 'email': email, 'aud': 'authenticated',
                                    'role': 'authenticated', 'app_metadata': {}, 'user_metadata': {}}})
             return
         if path == '/auth/v1/logout':
+            respond(200, {})
+            return
+        if path == '/auth/v1/otp':
+            if self.fail_email:
+                respond(400, {'code': 'email_address_not_authorized', 'msg': 'Email sending is not configured'})
+                return
+            self.accounts.setdefault(body['email'], {'has_password': False})
+            self.emails.append({'email': body['email'], 'redirect': parse_qs(urlparse(request.url).query)['redirect_to'][0]})
             respond(200, {})
             return
         token = request.headers.get('authorization', '').removeprefix('Bearer ')
@@ -80,18 +94,70 @@ class Backend:
         except (IndexError, ValueError, KeyError):
             email = ''
         if path == '/auth/v1/user':
-            respond(200, {'id': email, 'email': email, 'aud': 'authenticated'})
+            if request.method == 'PUT' and 'password' in body:
+                self.accounts[email]['has_password'] = True
+            respond(200, {'id': email, 'email': email, 'aud': 'authenticated', 'role': 'authenticated',
+                          'email_confirmed_at': '2026-01-01T00:00:00Z', 'app_metadata': {}, 'user_metadata': {}})
             return
         name = path.removeprefix('/rest/v1/rpc/')
+        if not self.invitations_available and 'invitation' in name:
+            respond(404, {'code': 'PGRST202', 'message': 'Function not installed'})
+            return
         if not self.multi and name not in ('projectflow_get_state', 'projectflow_save'):
             respond(404, {'code': 'PGRST202', 'message': 'Function not installed'})
             return
         selected = body.get('p_project_id') or self.default_id
+        if name in ('projectflow_get_invitation', 'projectflow_accept_invitation'):
+            invitation = self.invitations.get(body['p_invitation_id'])
+            if not invitation:
+                respond(400, {'code': '22023', 'message': 'El enlace de invitación ya no es válido.'})
+                return
+            selected = invitation['project_id']
         if selected != self.default_id and selected not in self.projects:
             respond(404, {'code': 'P0002', 'message': 'El proyecto no existe'})
             return
         data = self.data if selected == self.default_id else self.projects[selected]['data']
         roles = self.roles if selected == self.default_id else self.projects[selected]['roles']
+        if name in ('projectflow_prepare_invitation', 'projectflow_list_invitations', 'projectflow_cancel_invitation'):
+            if roles.get(email) != 'leader':
+                respond(403, {'code': '42501', 'message': 'Solo el propietario puede invitar.'})
+                return
+            if name == 'projectflow_prepare_invitation':
+                target = body['p_email'].strip().lower()
+                for key, item in list(self.invitations.items()):
+                    if item['email'] == target and item['project_id'] == selected:
+                        del self.invitations[key]
+                invitation = {'id': str(uuid.uuid4()), 'email': target, 'project_id': selected,
+                              'status': 'pending', 'invited_by': email, 'expired': False,
+                              'expires_at': '2030-01-01T00:00:00Z'}
+                self.invitations[invitation['id']] = invitation
+                respond(200, invitation)
+            elif name == 'projectflow_list_invitations':
+                respond(200, [item for item in self.invitations.values() if item['project_id'] == selected and item['status'] == 'pending'])
+            else:
+                invitation = self.invitations.get(body['p_invitation_id'])
+                if not invitation or invitation['project_id'] != selected or invitation['status'] != 'pending':
+                    respond(400, {'code': '22023', 'message': 'La invitación cambió. Actualiza la lista.'})
+                    return
+                invitation['status'] = 'revoked'
+                respond(200, None)
+            return
+        if name in ('projectflow_get_invitation', 'projectflow_accept_invitation'):
+            if email != invitation['email'] or roles.get(invitation['invited_by']) != 'leader':
+                respond(403, {'code': '42501', 'message': 'Esta invitación no corresponde a tu cuenta.'})
+                return
+            if invitation['status'] == 'revoked' or invitation['expired']:
+                respond(400, {'code': '22023', 'message': 'La invitación venció o fue cancelada.'})
+                return
+            if name == 'projectflow_accept_invitation':
+                if not self.accounts[email]['has_password']:
+                    respond(400, {'code': '22023', 'message': 'Crea primero tu contraseña.'})
+                    return
+                roles[email] = 'responsible'
+                invitation['status'] = 'accepted'
+            respond(200, {'project_id': selected, 'name': data.get(PROJECT, {}).get('project', {}).get('name', 'Mi proyecto'),
+                          'email': email, 'accepted': invitation['status'] == 'accepted', 'has_password': self.accounts[email]['has_password']})
+            return
         def state():
             result = {'data': data, 'role': roles.get(email, 'viewer')}
             if self.multi:
@@ -119,7 +185,10 @@ class Backend:
         if name in ('projectflow_list_editors','projectflow_set_editor') and roles.get(email) == 'leader':
             if name == 'projectflow_set_editor':
                 if body['p_enabled']: roles[body['p_email']] = 'responsible'
-                else: roles.pop(body['p_email'], None)
+                else:
+                    roles.pop(body['p_email'], None)
+                    for item in self.invitations.values():
+                        if item['email'] == body['p_email'] and item['project_id'] == selected: item['status'] = 'revoked'
             respond(200, [{'email': e,'owner': r == 'leader','active':True} for e,r in roles.items()])
             return
         if email not in roles or name not in ('projectflow_save','projectflow_save_project'):
@@ -216,6 +285,19 @@ class SharedProjectTests(unittest.TestCase):
 
     def wait_saved(self, page):
         expect(page.locator('#pf-status')).to_have_text('Guardado compartido')
+
+    def open_invitation(self, page, email, invitation_email=None):
+        # Simulate an email verification callback on the recipient's own device.
+        invitation_email = invitation_email or self.backend.emails[-1]
+        page.goto(invitation_email['redirect'] + '#access_token=' + self.backend.jwt(email)
+                  + '&refresh_token=test-refresh&expires_in=3600&token_type=bearer&type=magiclink')
+
+    def invite(self, page, email):
+        self.settings_click(page, '#pf-project-access')
+        page.locator('#pf-add-editor [name="email"]').fill(email)
+        page.locator('#pf-add-editor button[type="submit"]').click()
+        expect(page.locator('#pf-access-message')).to_contain_text('Invitación enviada')
+        return self.backend.emails[-1]
 
     def test_anonymous_and_unapproved_accounts_can_read_but_cannot_edit(self):
         page = self.page()
@@ -678,7 +760,14 @@ class SharedProjectTests(unittest.TestCase):
         self.settings_click(owner, '#pf-project-access')
         owner.locator('#pf-add-editor [name="email"]').fill('responsible@example.test')
         owner.locator('#pf-add-editor button[type="submit"]').click()
-        expect(owner.locator('#pf-access-message')).to_contain_text('solo en este proyecto')
+        expect(owner.locator('#pf-access-message')).to_contain_text('solo este proyecto')
+        self.assertNotIn('responsible@example.test', self.backend.projects[first]['roles'])
+        recipient = self.page()
+        self.open_invitation(recipient, 'responsible@example.test')
+        expect(recipient.locator('#inv-password-kept')).to_be_visible()
+        expect(recipient.locator('#inv-new-password')).to_be_hidden()
+        recipient.locator('#inv-submit').click()
+        expect(recipient.locator('#pf-role')).to_have_text('Edición autorizada')
         owner.locator('#pf-access-close').click()
         second = self.create_project(owner, 'Otro', 7, '2026-12-20')
         editor = self.page(); self.login(editor, 'responsible@example.test', 'index.html?project='+first)
@@ -694,6 +783,97 @@ class SharedProjectTests(unittest.TestCase):
         expect(owner.locator('#pf-access-message')).to_contain_text('retirado')
         editor.goto(self.base+'/index.html?project='+first)
         expect(editor.locator('#pf-role')).to_have_text('Solo lectura')
+
+    def test_new_recipient_sets_private_password_on_mobile_without_changing_owner_session(self):
+        owner = self.page(); self.login(owner)
+        project = self.create_project(owner, 'Proyecto invitado', 2, '2026-12-01')
+        self.invite(owner, 'new@example.test')
+        self.assertNotIn('new@example.test', self.backend.projects[project]['roles'])
+        owner.locator('#pf-access-close').click()
+        owner.reload()
+        expect(owner.locator('#pf-role')).to_have_text('Edición autorizada')
+        self.settings_click(owner, '#pf-project-access')
+        expect(owner.locator('#pf-editor-list')).to_contain_text('leader@example.test · Propietario')
+        recipient = self.page(mobile=True)
+        recipient.add_init_script("localStorage.setItem('projectflow.ui.fontLevel', '7')")
+        self.open_invitation(recipient, 'new@example.test')
+        expect(recipient.locator('#inv-new-password')).to_be_visible()
+        self.assertEqual(recipient.evaluate('getComputedStyle(document.documentElement).fontSize'), '24px')
+        self.assertTrue(recipient.evaluate('document.documentElement.scrollWidth <= innerWidth'))
+        recipient.locator('#inv-password').fill('my-private-password')
+        recipient.locator('#inv-confirm').fill('different-password')
+        recipient.locator('#inv-submit').click()
+        expect(recipient.locator('#inv-message')).to_contain_text('no coinciden')
+        self.assertFalse(self.backend.accounts['new@example.test']['has_password'])
+        recipient.locator('#inv-confirm').fill('my-private-password')
+        recipient.locator('#inv-submit').click()
+        expect(recipient.locator('#pf-role')).to_have_text('Edición autorizada')
+        self.assertEqual(parse_qs(urlparse(recipient.url).query)['project'], [project])
+        self.assertNotIn('new@example.test', self.backend.roles)
+        self.assertTrue(self.backend.accounts['new@example.test']['has_password'])
+
+    def test_email_failure_is_pending_and_can_be_resent_or_cancelled(self):
+        owner = self.page(mobile=True); self.login(owner)
+        self.backend.fail_email = True
+        self.settings_click(owner, '#pf-project-access')
+        owner.locator('#pf-add-editor [name="email"]').fill('new@example.test')
+        owner.locator('#pf-add-editor button[type="submit"]').click()
+        expect(owner.locator('#pf-access-message')).to_contain_text('no se pudo enviar')
+        expect(owner.locator('#pf-invitation-list')).to_contain_text('Pendiente de aceptación')
+        self.assertEqual(self.backend.emails, [])
+        self.assertNotIn('new@example.test', self.backend.roles)
+        old_id = next(iter(self.backend.invitations))
+        self.backend.fail_email = False
+        owner.get_by_role('button', name='Reenviar', exact=True).click()
+        expect(owner.locator('#pf-access-message')).to_contain_text('Invitación enviada')
+        self.assertNotIn(old_id, self.backend.invitations)
+        self.assertTrue(owner.locator('#pf-access-dialog').evaluate('(el) => el.scrollWidth <= el.clientWidth'))
+        owner.get_by_role('button', name='Cancelar invitación', exact=True).click()
+        expect(owner.locator('#pf-access-message')).to_contain_text('cancelada')
+        expect(owner.locator('#pf-invitation-list')).to_contain_text('No hay invitaciones')
+        recipient = self.page(); self.open_invitation(recipient, 'new@example.test')
+        expect(recipient.locator('#inv-message')).to_contain_text('cancelada')
+        expect(recipient.locator('#inv-accept')).to_be_hidden()
+
+    def test_invitation_rejects_wrong_account_and_handles_invalid_or_used_link(self):
+        owner = self.page(); self.login(owner)
+        email = self.invite(owner, 'responsible@example.test')
+        recipient = self.page(); self.open_invitation(recipient, 'outsider@example.test')
+        expect(recipient.locator('#inv-message')).to_contain_text('no corresponde')
+        expect(recipient.locator('#inv-accept')).to_be_hidden()
+        recipient.locator('#inv-switch').click()
+        expect(recipient.locator('#inv-login')).to_be_visible()
+        recipient.locator('#inv-login [name="email"]').fill('responsible@example.test')
+        recipient.locator('#inv-login [name="password"]').fill('test-password-only')
+        recipient.locator('#inv-login button').click()
+        expect(recipient.locator('#inv-accept')).to_be_visible()
+        recipient.locator('#inv-submit').click()
+        expect(recipient.locator('#pf-role')).to_have_text('Edición autorizada')
+        reader = self.page()
+        reader.goto(email['redirect'] + '#error=access_denied&error_code=otp_expired')
+        expect(reader.locator('#inv-message')).to_contain_text('venció o ya se usó')
+        expect(reader.locator('#inv-login')).to_be_visible()
+        reader.goto(self.base + '/invitacion.html?invitation=invalid')
+        expect(reader.locator('#inv-message')).to_contain_text('no es válido')
+        expect(reader.locator('#inv-accept')).to_be_hidden()
+
+    def test_missing_invitation_migration_preserves_editor_removal(self):
+        self.backend.invitations_available = False
+        owner = self.page(); self.login(owner)
+        self.settings_click(owner, '#pf-project-access')
+        expect(owner.locator('#pf-access-message')).to_contain_text('aún no están activadas')
+        expect(owner.locator('#pf-add-editor button')).to_be_disabled()
+        owner.get_by_role('button', name='Quitar permiso', exact=True).click()
+        expect(owner.locator('#pf-access-message')).to_contain_text('retirado')
+        self.assertNotIn('responsible@example.test', self.backend.roles)
+        self.assertEqual(self.backend.emails, [])
+
+    def test_reader_cannot_prepare_an_invitation_or_trigger_email_from_app(self):
+        reader = self.page(); reader.goto(self.base + '/index.html')
+        expect(reader.locator('#pf-role')).to_have_text('Solo lectura')
+        error = reader.evaluate("ProjectFlow.inviteEditor('someone@example.test').catch(e => e.message)")
+        self.assertIn('propietario', error)
+        self.assertEqual(self.backend.emails, [])
 
     def test_custom_week_removal_preserves_task_dates_and_unassigns_tasks(self):
         page = self.page(); self.login(page)

@@ -69,36 +69,96 @@
     finally { creating = false; form.querySelectorAll('button').forEach(button => button.disabled = false); }
   });
   const access = document.createElement('dialog'); access.id = 'pf-access-dialog';
-  access.innerHTML = `<h2>Quién puede editar este proyecto</h2><p>El enlace solo permite leer. La edición se concede por separado para cada proyecto.</p>
-    <ul id="pf-editor-list"></ul><form id="pf-add-editor"><label>Correo de la cuenta<input name="email" type="email" required placeholder="persona@ejemplo.com"></label><p>Crea primero la cuenta en Supabase → Authentication → Users. Después autorízala aquí.</p><button type="submit">Autorizar edición</button></form><p id="pf-access-message" role="status"></p><button type="button" id="pf-access-close">Cerrar</button>`;
+  access.innerHTML = `<h2>Quién puede editar este proyecto</h2><p>El enlace de lectura no permite editar. Invita por correo a las personas que quieras autorizar en este proyecto.</p>
+    <h3>Personas con acceso</h3><ul id="pf-editor-list"></ul>
+    <form id="pf-add-editor"><label>Correo de la persona<input name="email" type="email" required maxlength="254" placeholder="persona@ejemplo.com"></label>
+    <p>Recibirá un enlace para aceptar. Si es su primera vez, creará su propia contraseña; tú no necesitas conocerla.</p><button type="submit">Enviar invitación</button></form>
+    <h3>Invitaciones pendientes</h3><ul id="pf-invitation-list"></ul>
+    <p id="pf-access-message" role="status"></p><button type="button" id="pf-access-close">Cerrar</button>`;
   document.body.append(access);
-  let changingAccess = false;
+  let changingAccess = false, invitationsReady = false;
+  function accessBusy(busy) {
+    changingAccess = busy;
+    access.querySelectorAll('button').forEach(button => button.disabled = busy);
+    find('pf-add-editor').querySelectorAll('input, button').forEach(field => field.disabled = busy || !invitationsReady);
+  }
   function renderEditors(editors) {
     find('pf-editor-list').replaceChildren(...editors.filter(person => person.active).map(person => {
       const li = document.createElement('li'), label = document.createElement('span');
       label.textContent = person.email + (person.owner ? ' · Propietario' : ' · Puede editar'); li.append(label);
       if (!person.owner) {
         const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Quitar permiso';
-        remove.addEventListener('click', () => changeAccess(person.email, false)); li.append(remove);
+        remove.addEventListener('click', () => changeAccess(person.email)); li.append(remove);
       }
       return li;
     }));
   }
-  async function changeAccess(email, enabled) {
-    if (changingAccess) return;
-    changingAccess = true; access.querySelectorAll('button').forEach(button => button.disabled = true);
-    try {
-      renderEditors(await ProjectFlow.projectRpc('projectflow_set_editor', { p_project_id: info.id, p_email: email, p_enabled: enabled }));
-      find('pf-access-message').textContent = enabled ? 'Edición autorizada solo en este proyecto.' : 'Permiso de edición retirado de este proyecto.';
-      find('pf-add-editor').reset();
-    } catch (error) { find('pf-access-message').textContent = error.message; }
-    finally { changingAccess = false; access.querySelectorAll('button').forEach(button => button.disabled = false); }
+  function renderInvitations(invitations) {
+    const nodes = invitations.map(invitation => {
+      const li = document.createElement('li'), label = document.createElement('span'), actions = document.createElement('div');
+      label.textContent = `${invitation.email} · ${invitation.expired ? 'Vencida' : 'Pendiente de aceptación'}`;
+      const resend = document.createElement('button'); resend.type = 'button'; resend.textContent = 'Reenviar';
+      resend.addEventListener('click', () => sendInvitation(invitation.email));
+      const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancelar invitación';
+      cancel.addEventListener('click', () => cancelInvitation(invitation.id));
+      actions.className = 'pf-project-actions'; actions.append(resend, cancel); li.append(label, actions); return li;
+    });
+    if (!nodes.length) { const empty = document.createElement('li'); empty.textContent = 'No hay invitaciones pendientes.'; nodes.push(empty); }
+    find('pf-invitation-list').replaceChildren(...nodes);
   }
+  async function refreshAccess() {
+    renderEditors(await ProjectFlow.projectRpc('projectflow_list_editors', { p_project_id: info.id }));
+    try {
+      renderInvitations(await ProjectFlow.projectRpc('projectflow_list_invitations', { p_project_id: info.id }));
+      invitationsReady = true;
+    } catch (error) {
+      invitationsReady = false;
+      find('pf-invitation-list').replaceChildren();
+      if (error.code === 'PGRST202') throw new Error('Las invitaciones aún no están activadas. Completa la actualización de Supabase indicada en la guía de invitaciones.');
+      throw error;
+    }
+  }
+  async function changeAccess(email) {
+    if (changingAccess) return;
+    accessBusy(true);
+    try {
+      renderEditors(await ProjectFlow.projectRpc('projectflow_set_editor', { p_project_id: info.id, p_email: email, p_enabled: false }));
+      if (invitationsReady) await refreshAccess();
+      find('pf-access-message').textContent = 'Permiso de edición retirado de este proyecto.';
+    } catch (error) { find('pf-access-message').textContent = error.message; }
+    finally { accessBusy(false); }
+  }
+  async function sendInvitation(email) {
+    if (changingAccess || !invitationsReady) return;
+    accessBusy(true); find('pf-access-message').textContent = 'Preparando la invitación…';
+    try {
+      const result = await ProjectFlow.inviteEditor(email);
+      await refreshAccess();
+      find('pf-access-message').textContent = result.sent
+        ? 'Invitación enviada. La persona debe aceptarla para editar solo este proyecto.'
+        : result.errorCode === 'over_email_send_rate_limit'
+          ? 'La invitación quedó pendiente, pero no se envió el correo: alcanzaste el límite de envíos. Espera antes de reenviar.'
+          : 'La invitación quedó pendiente, pero no se pudo enviar el correo. Revisa la configuración de correo en Supabase y luego pulsa Reenviar.';
+      if (result.sent) find('pf-add-editor').reset();
+    } catch (error) { find('pf-access-message').textContent = error.message; }
+    finally { accessBusy(false); }
+  }
+  async function cancelInvitation(id) {
+    if (changingAccess) return;
+    accessBusy(true);
+    try {
+      await ProjectFlow.projectRpc('projectflow_cancel_invitation', { p_project_id: info.id, p_invitation_id: id });
+      await refreshAccess(); find('pf-access-message').textContent = 'Invitación cancelada. Ese enlace ya no concede permiso de edición.';
+    } catch (error) { find('pf-access-message').textContent = error.message; }
+    finally { accessBusy(false); }
+  }
+  access.addEventListener('cancel', event => { if (changingAccess) event.preventDefault(); });
   find('pf-project-access').addEventListener('click', async () => {
-    access.showModal(); find('pf-access-message').textContent = 'Cargando permisos…';
-    try { renderEditors(await ProjectFlow.projectRpc('projectflow_list_editors', { p_project_id: info.id })); find('pf-access-message').textContent = ''; }
+    access.showModal(); accessBusy(true); find('pf-access-message').textContent = 'Cargando permisos…';
+    try { await refreshAccess(); find('pf-access-message').textContent = ''; }
     catch (error) { find('pf-access-message').textContent = error.message; }
+    finally { accessBusy(false); find('pf-add-editor').querySelector('input').focus(); }
   });
-  find('pf-add-editor').addEventListener('submit', event => { event.preventDefault(); changeAccess(new FormData(event.currentTarget).get('email'), true); });
+  find('pf-add-editor').addEventListener('submit', event => { event.preventDefault(); sendInvitation(new FormData(event.currentTarget).get('email')); });
   find('pf-access-close').addEventListener('click', () => access.close());
 })();

@@ -43,8 +43,9 @@ html.pf-readonly [data-pf-field], html.pf-readonly [data-pf-form] input, html.pf
 #pf-project-dialog label, #pf-access-dialog label { display: flex; flex-direction: column; gap: 8px; margin: 18px 0; }
 #pf-project-dialog input, #pf-access-dialog input { min-width: 0; width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #bfc7db; border-radius: 8px; font: inherit; }
 .pf-project-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
-#pf-editor-list { list-style: none; padding: 0; }
-#pf-editor-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 0; border-bottom: 1px solid #e5e9f1; overflow-wrap: anywhere; }
+#pf-editor-list, #pf-invitation-list { list-style: none; padding: 0; }
+#pf-editor-list li, #pf-invitation-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 0; border-bottom: 1px solid #e5e9f1; overflow-wrap: anywhere; }
+#pf-add-editor { margin: 24px 0; padding: 16px; border-radius: 12px; background: #f5f6ff; }
 .personal-plan { margin: 24px 0; padding: 24px; }
 .plan-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 20px 0; }
 .plan-tabs button { border: 1px solid #bfc7db; border-radius: 8px; padding: 10px; background: white; cursor: pointer; color: #26334d; }

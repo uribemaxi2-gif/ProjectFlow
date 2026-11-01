@@ -11,7 +11,9 @@ a los que tienes acceso de edición; cada proyecto tiene su propio enlace de lec
 
 El propietario puede crear proyectos y autorizar editores **por proyecto**. Conocer
 el enlace permite consultar ese proyecto, sin conceder edición ni mostrar el catálogo
-personal. Las cuentas colaboradoras se crean una vez en Supabase Authentication.
+personal. El propietario invita por correo desde la web; cada persona verifica su
+correo, crea su propia contraseña si es nueva y acepta el permiso para ese proyecto.
+Puedes reenviar o cancelar invitaciones y retirar permisos ya aceptados.
 
 El menú se abre y cierra con **Abrir menú / Cerrar menú**. En celular y tablet
 comienza cerrado; al elegir una sección deja libre la pantalla. En PC puedes
@@ -38,6 +40,10 @@ No hace falta ejecutar primero `public-read.sql`; ese archivo corresponde a la
 actualización anterior de lectura pública.
 
 [Guía de uso, permisos y actualización](SETUP-COMPARTIDO.md).
+
+Para activar el envío, sigue [Invitaciones por correo con Gmail](INVITACIONES.md):
+requiere actualizar el SQL y configurar el correo SMTP y las redirecciones de
+Supabase. Publicar los archivos en GitHub Pages no configura esos servicios.
 
 ## Desarrollo
 

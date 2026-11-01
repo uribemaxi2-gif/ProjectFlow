@@ -109,8 +109,18 @@
   async function projectRpc(name, params = {}) {
     if (!multi) throw new Error('Primero completa la actualización de proyectos múltiples en Supabase.');
     const { data, error } = await client.rpc(name, params);
-    if (error) throw new Error(error.message || errorText(error));
+    if (error) throw Object.assign(new Error(error.message || errorText(error)), { code: error.code });
     return data;
+  }
+  async function inviteEditor(email) {
+    const invitation = await projectRpc('projectflow_prepare_invitation', { p_project_id: projectId, p_email: email });
+    const destination = new URL('invitacion.html', location.href);
+    destination.searchParams.set('invitation', invitation.id);
+    // Supabase sends the verification email; no admin key or recipient password
+    // is needed in the owner's browser. The database grants access on acceptance.
+    const { error } = await client.auth.signInWithOtp({ email: invitation.email,
+      options: { shouldCreateUser: true, emailRedirectTo: destination.href } });
+    return { invitation, sent: !error, errorCode: error?.code || '' };
   }
   function get(key, fallback) {
     if (!unlocked) throw new Error('Espera a que se carguen los datos.');
@@ -243,7 +253,7 @@
   }
   window.ProjectFlow = Object.freeze({
     ready: () => ready, get, set: (key, value) => setMany({ [key]: value }), setMany, markDirty, clean, canEdit, applyAccess, normalizeSchedule,
-    project: () => ({ ...projectInfo, name: cache[KEYS[2]]?.project?.name || projectInfo.name }), projectUrl, navigate, projectRpc
+    project: () => ({ ...projectInfo, name: cache[KEYS[2]]?.project?.name || projectInfo.name }), projectUrl, navigate, projectRpc, inviteEditor
   });
   window.addEventListener('beforeunload', event => {
     if (unlocked && (dirty.size || pending)) { event.preventDefault(); event.returnValue = ''; }

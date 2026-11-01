@@ -15,12 +15,13 @@ before(async () => {
     create role anon nologin;
     create role authenticated nologin;
     create schema auth;
-    create table auth.users (id uuid primary key, email text unique);
+    create table auth.users (id uuid primary key, email text unique,
+      email_confirmed_at timestamptz default now(), encrypted_password text default 'test-hash');
     create function auth.uid() returns uuid language sql stable as $$
       select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
     $$;
     grant usage on schema public, auth to anon, authenticated;
-    insert into auth.users values
+    insert into auth.users(id, email) values
       ('${leader}', 'leader@example.test'),
       ('${responsible}', 'responsible@example.test'),
       ('${outsider}', 'outsider@example.test');
@@ -266,4 +267,96 @@ test('removing a week and unassigning its tasks is atomic; stale week assignment
     assert.equal((await rpc('projectflow_get_project',[projectB.project_id])).data['equipo14.personas'].schedule[0].dueDate,'2026-12-04');
     await assert.rejects(() => rpc('projectflow_save_project',[projectB.project_id,JSON.stringify([update('equipo14.personas',unassigned,{schedule:[task]})])]), e => e.code === '40001');
   });
+});
+
+let inviteProject, otherInviteProject, invitation;
+const newcomer = '10000000-0000-0000-0000-000000000004';
+test('only the project owner can prepare invitations; preparation does not grant access', async () => {
+  await asUser(leader, async () => {
+    inviteProject = (await rpc('projectflow_create_project', ['Invitaciones', null, null, 1])).project_id;
+    otherInviteProject = (await rpc('projectflow_create_project', ['Otro privado', null, null, 1])).project_id;
+    invitation = await rpc('projectflow_prepare_invitation', [inviteProject, '  New@Example.test  ']);
+    assert.equal(invitation.email, 'new@example.test');
+    assert.equal((await rpc('projectflow_list_editors', [inviteProject])).length, 1);
+    assert.equal((await rpc('projectflow_list_invitations', [inviteProject])).length, 1);
+    for (const email of [null, '', 'invalid', 'bad @example.test', 'leader@example.test']) {
+      await assert.rejects(() => rpc('projectflow_prepare_invitation', [inviteProject, email]), e => e.code === '22023');
+    }
+    await assert.rejects(() => rpc('projectflow_prepare_invitation', [inviteProject, invitation.email]), e => e.code === '22023');
+  });
+  for (const id of [null, outsider, responsible]) {
+    await asUser(id, async () => {
+      await denied(() => db.query('select * from public.projectflow_invitations'));
+      await denied(() => rpc('projectflow_prepare_invitation', [inviteProject, 'another@example.test']));
+      await denied(() => rpc('projectflow_list_invitations', [inviteProject]));
+      await denied(() => rpc('projectflow_cancel_invitation', [inviteProject, invitation.id]));
+      await denied(() => rpc('projectflow_get_invitation', [invitation.id]));
+      await denied(() => rpc('projectflow_accept_invitation', [invitation.id]));
+    }, id ? 'authenticated' : 'anon');
+  }
+});
+
+test('the recipient must have a confirmed matching email and their own password', async () => {
+  await db.query('insert into auth.users(id,email,email_confirmed_at,encrypted_password) values ($1,$2,null,null)', [newcomer, invitation.email]);
+  await asUser(newcomer, () => denied(() => rpc('projectflow_accept_invitation', [invitation.id])));
+  await db.query('update auth.users set email_confirmed_at = now() where id = $1', [newcomer]);
+  await asUser(newcomer, async () => {
+    const info = await rpc('projectflow_get_invitation', [invitation.id]);
+    assert.equal(info.has_password, false);
+    assert.equal((await rpc('projectflow_get_project', [inviteProject])).role, 'viewer');
+    await assert.rejects(() => rpc('projectflow_accept_invitation', [invitation.id]), e => e.code === '22023');
+  });
+  await db.query('update auth.users set encrypted_password = $1 where id = $2', ['test-hash', newcomer]);
+  await asUser(newcomer, async () => {
+    const result = await rpc('projectflow_accept_invitation', [invitation.id]);
+    assert.equal(result.accepted, true);
+    assert.equal(result.project_id, inviteProject);
+    assert.equal((await rpc('projectflow_get_project', [inviteProject])).role, 'responsible');
+    assert.equal((await rpc('projectflow_get_project', [otherInviteProject])).role, 'viewer');
+    assert.equal((await rpc('projectflow_get_project', [inviteProject])).can_create, false);
+    assert.equal((await rpc('projectflow_accept_invitation', [invitation.id])).accepted, true);
+    await denied(() => rpc('projectflow_prepare_invitation', [inviteProject, 'else@example.test']));
+  });
+  await asUser(leader, async () => {
+    assert.deepEqual(await rpc('projectflow_list_invitations', [inviteProject]), []);
+    await assert.rejects(() => rpc('projectflow_cancel_invitation', [inviteProject, invitation.id]), e => e.code === '22023');
+  });
+});
+
+test('revocation cannot be undone by replaying an accepted invitation or repeating setup', async () => {
+  await asUser(leader, () => rpc('projectflow_set_editor', [inviteProject, invitation.email, false]));
+  await db.exec(sql);
+  await asUser(newcomer, async () => {
+    await assert.rejects(() => rpc('projectflow_accept_invitation', [invitation.id]), e => e.code === '22023');
+    assert.equal((await rpc('projectflow_get_project', [inviteProject])).role, 'viewer');
+  });
+});
+
+test('resending replaces the previous invitation and cancellation survives setup', async () => {
+  const previous = invitation.id;
+  await db.query("update public.projectflow_invitations set prepared_at = now() - interval '2 minutes' where id = $1", [previous]);
+  await asUser(leader, async () => {
+    invitation = await rpc('projectflow_prepare_invitation', [inviteProject, invitation.email]);
+    assert.notEqual(invitation.id, previous);
+    await assert.rejects(() => rpc('projectflow_cancel_invitation', [otherInviteProject, invitation.id]), e => e.code === '22023');
+    await rpc('projectflow_cancel_invitation', [inviteProject, invitation.id]);
+  });
+  await db.exec(sql);
+  await asUser(newcomer, async () => {
+    for (const id of [previous, invitation.id]) await assert.rejects(() => rpc('projectflow_accept_invitation', [id]), e => e.code === '22023');
+    assert.equal((await rpc('projectflow_get_project', [inviteProject])).role, 'viewer');
+  });
+});
+
+test('expired invitations and invitations whose issuer lost ownership cannot be accepted', async () => {
+  await db.query("update public.projectflow_invitations set prepared_at = now() - interval '2 minutes' where id = $1", [invitation.id]);
+  invitation = await asUser(leader, () => rpc('projectflow_prepare_invitation', [inviteProject, invitation.email]));
+  await db.query("update public.projectflow_invitations set expires_at = now() - interval '1 minute' where id = $1", [invitation.id]);
+  await asUser(newcomer, () => assert.rejects(() => rpc('projectflow_accept_invitation', [invitation.id]), e => e.code === '22023'));
+  await db.query("update public.projectflow_invitations set expires_at = now() + interval '1 day' where id = $1", [invitation.id]);
+  await db.query('update public.projectflow_project_members set active = false where project_id = $1 and user_id = $2', [inviteProject, leader]);
+  await asUser(newcomer, () => denied(() => rpc('projectflow_accept_invitation', [invitation.id])));
+  await db.query('update public.projectflow_project_members set active = true where project_id = $1 and user_id = $2', [inviteProject, leader]);
+  await db.query('update auth.users set email = $1 where id = $2', ['changed@example.test', newcomer]);
+  await asUser(newcomer, () => denied(() => rpc('projectflow_accept_invitation', [invitation.id])));
 });

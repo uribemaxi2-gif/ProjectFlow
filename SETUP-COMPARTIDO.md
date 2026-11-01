@@ -67,12 +67,17 @@ consultable con su enlace.
 
 Para permitir que alguien edite:
 
-1. Crea su cuenta una sola vez en **Supabase → Authentication → Users** con
-   correo y contraseña. La cuenta de la aplicación es distinta a la del panel de Supabase.
+1. Activa una vez las [invitaciones por correo](INVITACIONES.md), incluido el SMTP.
 2. Abre el proyecto que quieres compartir como propietario.
-3. Pulsa **Quién puede editar**, escribe el correo de esa cuenta y pulsa
-   **Autorizar edición**.
-4. Esa persona entra con **Entrar para editar** en el enlace del proyecto.
+3. Ve a **⚙ Ajustes → Proyecto y enlace → Quién puede editar**, escribe su
+   correo y pulsa **Enviar invitación**.
+4. Esa persona abre el correo, crea su propia contraseña si es nueva y pulsa
+   **Aceptar invitación**. Si ya tenía contraseña, la conserva.
+
+No necesitas crear cuentas de colaboradores ni conocer sus contraseñas. La cuenta
+de ProjectFlow es distinta a una cuenta de administración del panel de Supabase.
+Preparar o enviar una invitación no concede edición hasta que se acepte.
+Las invitaciones pendientes se pueden **Reenviar** o **Cancelar** desde ese panel.
 
 Autorizar a alguien en un proyecto **no** le concede edición en los demás.
 Los editores no pueden crear proyectos, conceder permisos ni ver la lista de editores.
