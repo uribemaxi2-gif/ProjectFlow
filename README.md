@@ -2,18 +2,18 @@
 
 Varios proyectos personales, cada uno con agenda, fechas de entrega, semanas de
 trabajo, ficha y registros independientes. Un selector cambia entre los proyectos
-a los que tienes acceso de edición; cada proyecto tiene su propio enlace de lectura.
+a los que tienes acceso con tu cuenta; cada proyecto tiene su propio enlace de lectura.
 
 - `index.html`: actividades con fecha, semana asignada y estado.
 - `cronograma.html`: semanas editables, objetivos, fechas y progreso.
 - `proyecto.html`: ficha, solicitudes y tareas, revisiones, notas y respaldos.
 - `assets/projects.js`: crear proyectos, compartir enlaces y administrar editores.
 
-El propietario puede crear proyectos y autorizar editores **por proyecto**. Conocer
-el enlace permite consultar ese proyecto, sin conceder edición ni mostrar el catálogo
-personal. El propietario invita por correo desde la web; cada persona verifica su
-correo, crea su propia contraseña si es nueva y acepta el permiso para ese proyecto.
-Puedes reenviar o cancelar invitaciones y retirar permisos ya aceptados.
+Hay cinco [roles por proyecto](ROLES.md): Usuario (lectura sin cuenta),
+Consultor / QA (envía solicitudes), PM menor (gestiona datos), PM (también invita
+como QA) y Admin (administra todos los roles y permisos). Las invitaciones verifican
+el correo y permiten crear una contraseña personal. Conocer el enlace solo permite
+consultar ese proyecto, sin mostrar el catálogo personal.
 
 El menú se abre y cierra con **Abrir menú / Cerrar menú**. En celular y tablet
 comienza cerrado; al elegir una sección deja libre la pantalla. En PC puedes
@@ -41,7 +41,7 @@ actualización anterior de lectura pública.
 
 [Guía de uso, permisos y actualización](SETUP-COMPARTIDO.md).
 
-Para activar el envío, sigue [Invitaciones por correo con Gmail](INVITACIONES.md):
+Para activar el envío, sigue [Invitaciones por correo](INVITACIONES.md):
 requiere actualizar el SQL y configurar el correo SMTP y las redirecciones de
 Supabase. Publicar los archivos en GitHub Pages no configura esos servicios.
 

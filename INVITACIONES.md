@@ -1,11 +1,11 @@
 # Activar invitaciones por correo
 
-La web permite invitar a editar un proyecto concreto. Quien recibe la invitación
+La web permite invitar a participar en un proyecto concreto con un [rol asignado](ROLES.md). Quien recibe la invitación
 verifica su correo y acepta el acceso; si es nuevo, crea su propia contraseña.
 No tienes que conocerla ni crear su cuenta manualmente. Los demás mantienen el
 acceso de lectura con el enlace del proyecto.
 
-Estos pasos se hacen una vez en Supabase y Google. Subir la web a GitHub no los
+Estos pasos se hacen una vez en Supabase y tu proveedor de correo. Si Brevo ya está funcionando, actualizar los roles solo requiere ejecutar el SQL; conserva el SMTP actual. Subir la web a GitHub no los
 configura automáticamente. No hace falta mantener abierto el PC ni Supabase.
 
 ## 1. Actualizar la base de datos
@@ -30,39 +30,36 @@ que se permitan usuarios nuevos (**Allow new users to sign up**) y que
 verificar que la persona controla la dirección invitada. No la desactives para
 solucionar errores de envío.
 
-## 3. Preparar Gmail
+## 3. Preparar Brevo
 
-1. Abre [Seguridad de tu cuenta de Google](https://myaccount.google.com/security).
-2. Activa **Verificación en dos pasos** si todavía no está activada.
-3. Abre [Contraseñas de aplicaciones](https://myaccount.google.com/apppasswords).
-4. Crea una con el nombre **ProjectFlow**. Google mostrará una contraseña de
-   aplicación; la introducirás directamente en Supabase en el siguiente paso.
+1. Crea tu cuenta en [Brevo](https://www.brevo.com/).
+2. Agrega y verifica el correo remitente desde **Configuración → Remitentes**.
+3. Abre **SMTP y API → SMTP**. Copia el **Login SMTP** y genera una **clave SMTP**.
 
-No uses tu contraseña habitual de Gmail. No compartas la contraseña de aplicación
-por chat, capturas, GitHub ni archivos de la web. Si Google no ofrece esta opción
-para tu cuenta, habrá que usar otro proveedor SMTP; depende de las políticas y
-opciones de seguridad de esa cuenta.
+El login SMTP puede ser una dirección terminada en `@smtp-brevo.com`: no es
+necesariamente tu correo remitente. La clave SMTP es diferente de una clave API
+o de la contraseña con la que entras al panel de Brevo. Guárdala de forma privada.
 
-## 4. Conectar Gmail a Supabase
+## 4. Conectar Brevo a Supabase
 
-Busca **Authentication → Email → SMTP Settings** (en algunas versiones aparece
-como **Emails** o **Custom SMTP**) y activa **Enable Custom SMTP**.
+En **Authentication → Email → SMTP Settings**, activa **Enable Custom SMTP**:
 
 | Campo | Valor |
 | --- | --- |
-| Sender email address | Tu dirección completa de Gmail |
+| Sender email address | El correo remitente verificado en Brevo |
 | Sender name | ProjectFlow |
-| Host | `smtp.gmail.com` |
-| Port | `465` |
-| Username | La misma dirección completa de Gmail |
-| Password | La contraseña de aplicación generada por Google |
+| Host | `smtp-relay.brevo.com` |
+| Port | `587` |
+| Username | El Login SMTP que muestra Brevo |
+| Password | La clave SMTP generada en Brevo |
 
-Guarda los cambios. Gmail sirve para comenzar con pocos envíos; Google y Supabase
-aplican límites. Si el uso aumenta, se puede cambiar a un proveedor de correo
-transaccional sin cambiar los permisos ni las cuentas de ProjectFlow.
+Guarda los cambios. No compartas claves por chat, capturas, GitHub ni archivos de
+la web. Si pierdes la clave, genera otra y reemplázala directamente en Supabase.
+El correo integrado de Supabase tiene restricciones de destinatarios y no
+sustituye el SMTP para invitar a personas ajenas al equipo de Supabase.
 
-El correo integrado de Supabase tiene restricciones de destinatarios; no sustituye
-este SMTP para invitar a personas ajenas al equipo de Supabase.
+Otros proveedores SMTP también son compatibles. Cambiar de proveedor no requiere
+modificar los roles, las cuentas ni el código de ProjectFlow.
 
 ## 5. Revisar el mensaje del correo
 
@@ -87,15 +84,15 @@ el permiso de edición se valida por separado al aceptar la invitación.
 
 ## 6. Invitar desde ProjectFlow
 
-1. Entra como propietario y selecciona el proyecto.
-2. Abre **⚙ Ajustes → Proyecto y enlace → Quién puede editar**.
-3. Escribe el correo de la persona y pulsa **Enviar invitación**.
+1. Entra como admin o PM y selecciona el proyecto.
+2. Abre **⚙ Ajustes → Proyecto y enlace → Roles e invitaciones** (admin) o **Invitar personas** (PM).
+3. Escribe el correo. El admin elige el rol; el PM siempre invita como Consultor / QA. Pulsa **Enviar invitación**.
 4. La persona abre el correo, elige su contraseña si es nueva y pulsa
    **Aceptar invitación**. Puede hacerlo desde otro dispositivo o navegador.
 5. Comprueba que aparece en **Personas con acceso** de ese proyecto.
 
 El remitente conserva su sesión. El destinatario conserva su contraseña si ya tenía
-cuenta y no obtiene permisos de propietario ni acceso de edición a otros proyectos.
+cuenta y recibe únicamente el rol indicado en la invitación para ese proyecto.
 Después podrá entrar con su correo y contraseña desde los ajustes de la web.
 
 **Reenviar** crea un enlace nuevo e invalida la invitación anterior; espera al menos
@@ -104,7 +101,7 @@ pero el enlace de acceso del correo vence antes, según la caducidad configurada
 Supabase Auth. Si vence, reenvía la invitación. Si ya tiene sesión o contraseña,
 puede entrar en la pantalla de invitación mientras esta siga vigente.
 
-**Cancelar invitación** impide aceptarla. Si ya la aceptó, usa **Quitar permiso**;
+**Cancelar invitación** impide aceptarla. Si ya la aceptó, el admin usa **Quitar permiso**;
 volver a abrir el correo anterior no recupera el permiso retirado. La lectura
 continúa disponible con el enlace público del proyecto.
 
@@ -112,8 +109,8 @@ continúa disponible con el enlace público del proyecto.
 
 - **«Las invitaciones aún no están activadas»**: ejecuta todo el SQL del paso 1
   y recarga. Los permisos existentes siguen funcionando.
-- **«No se pudo enviar el correo»**: revisa los campos SMTP, la contraseña de
-  aplicación y **Authentication → Logs**. La invitación queda pendiente y puedes
+- **«No se pudo enviar el correo»**: revisa los campos SMTP, la clave
+  SMTP y **Logs → Log type: Auth**. Abre el evento `/otp` y consulta `error` en Raw JSON. La invitación queda pendiente y puedes
   reenviarla después. Todavía no concede acceso.
 - **Límite de envíos**: espera el tiempo indicado y revisa los límites de Auth y
   del proveedor. No reintentes continuamente.

@@ -17,7 +17,7 @@
   const gate = document.createElement('section');
   gate.id = 'pf-gate';
   gate.innerHTML = `<div class="pf-card"><h1>ProjectFlow</h1>
-    <p>Consulta el espacio con el enlace. Para agregar o editar datos, entra con una cuenta autorizada.</p>
+    <p>Consulta el espacio con el enlace. Para enviar solicitudes o gestionar el proyecto, entra con una cuenta autorizada.</p>
     <form id="pf-login" hidden>
       <label for="pf-email-input">Correo</label><input id="pf-email-input" type="email" autocomplete="username" required>
       <label for="pf-password">Contraseña</label><input id="pf-password" type="password" autocomplete="current-password" required>
@@ -26,7 +26,7 @@
     <p id="pf-message" role="status" aria-live="polite">Cargando datos compartidos…</p>
     <button id="pf-retry" type="button" hidden>Reintentar</button>
     <button id="pf-cancel-login" type="button" hidden>Volver a consultar</button>
-    <p>El propietario autoriza las cuentas que pueden editar.</p>
+    <p>El admin asigna el rol de cada cuenta en este proyecto.</p>
   </div>`;
   document.body.prepend(gate);
   const find = id => document.getElementById(id);
@@ -51,15 +51,19 @@
     message(text, true);
   }
   function canEdit() { return unlocked && editor; }
+  function canSubmit() { return unlocked && (editor || projectInfo.role === 'qa'); }
+  function stateRole(state) { return state.roles_version === 1 ? state.project_role : ({ leader: 'admin', responsible: 'pm_junior', viewer: 'viewer' })[state.role]; }
   function applyAccess(root = document) {
     document.documentElement.classList.toggle('pf-readonly', !canEdit());
+    document.documentElement.classList.toggle('pf-nosubmit', !canSubmit());
     root.querySelectorAll('[data-pf-field], [data-pf-form] input, [data-pf-form] textarea, [data-pf-form] select').forEach(field => {
-      if (field.matches('select, [type=checkbox], [type=file], [type=radio]')) field.disabled = !canEdit();
-      else field.readOnly = !canEdit();
-      field.setAttribute('aria-readonly', String(!canEdit()));
+      const allowed = canEdit() || (canSubmit() && !!field.closest('[data-pf-submit-form="true"]'));
+      if (field.matches('select, [type=checkbox], [type=file], [type=radio]')) field.disabled = !allowed;
+      else field.readOnly = !allowed;
+      field.setAttribute('aria-readonly', String(!allowed));
     });
   }
-  function markDirty(key) { if (canEdit()) { dirty.set(key, ++generation); status('Cambios sin guardar'); } }
+  function markDirty(key) { if (canEdit() || (canSubmit() && key === 'draft:entry')) { dirty.set(key, ++generation); status('Cambios sin guardar'); } }
   function clean(key) { dirty.delete(key); }
   function normalizeSchedule(items) {
     if (!Array.isArray(items) || items.length > 500) throw new Error('Agenda no válida.');
@@ -84,7 +88,7 @@
     }
     const { data, error } = result;
     if (error) throw error;
-    if (!data || !['leader', 'responsible', 'viewer'].includes(data.role) || !data.data || typeof data.data !== 'object' || Array.isArray(data.data)) throw new Error('Estado no válido');
+    if (!data || !Object.hasOwn(ProjectFlowRoles.labels, stateRole(data)) || !data.data || typeof data.data !== 'object' || Array.isArray(data.data)) throw new Error('Estado no válido');
     return data;
   }
   function navigate(url) {
@@ -112,8 +116,9 @@
     if (error) throw Object.assign(new Error(error.message || errorText(error)), { code: error.code });
     return data;
   }
-  async function inviteEditor(email) {
-    const invitation = await projectRpc('projectflow_prepare_invitation', { p_project_id: projectId, p_email: email });
+  async function inviteEditor(email, role = 'qa') {
+    const invitation = await projectRpc(projectInfo.rolesVersion ? 'projectflow_prepare_invitation_role' : 'projectflow_prepare_invitation',
+      { p_project_id: projectId, p_email: email, ...(projectInfo.rolesVersion ? { p_role: role } : {}) });
     const destination = new URL('invitacion.html', location.href);
     destination.searchParams.set('invitation', invitation.id);
     // Supabase sends the verification email; no admin key or recipient password
@@ -121,6 +126,27 @@
     const { error } = await client.auth.signInWithOtp({ email: invitation.email,
       options: { shouldCreateUser: true, emailRedirectTo: destination.href } });
     return { invitation, sent: !error, errorCode: error?.code || '' };
+  }
+  async function submitRequest(request) {
+    if (!canSubmit()) throw new Error('Tu rol no permite enviar solicitudes.');
+    pending++; status('Enviando solicitud…');
+    try {
+      const state = await projectRpc('projectflow_submit_request', { p_project_id: projectId, p_request: copy(request) });
+      cache[KEYS[2]] = copy(state.data[KEYS[2]]);
+      clean('draft:entry'); status('Guardado compartido');
+    } catch (error) {
+      if (error.code === '42501') lock('Tu permiso para enviar solicitudes cambió. Pulsa Reintentar.');
+      status('No se pudo enviar la solicitud. Conserva lo escrito y vuelve a intentarlo.', true);
+      throw error;
+    } finally { pending--; }
+  }
+  async function checkPermissions() {
+    const state = await requestState();
+    if (projectInfo.role !== stateRole(state) || projectInfo.rolesVersion !== (state.roles_version || 0)) {
+      lock('Tus permisos cambiaron. Pulsa Reintentar para cargar el acceso actual.');
+      return false;
+    }
+    return true;
   }
   function get(key, fallback) {
     if (!unlocked) throw new Error('Espera a que se carguen los datos.');
@@ -187,14 +213,14 @@
       <div class="pf-controls">
       <button type="button" id="pf-refresh">Actualizar</button>
       <button type="button" id="pf-previous" hidden>Descargar datos anteriores</button>
-      <button type="button" id="pf-open-login">Entrar para editar</button>
+      <button type="button" id="pf-open-login">Entrar a mi cuenta</button>
       <button type="button" id="pf-logout" hidden>Salir</button></div>`;
     find('pf-account-content').append(bar);
-    find('pf-role').textContent = canEdit() ? 'Edición autorizada' : 'Solo lectura';
+    find('pf-role').textContent = projectInfo.rolesVersion ? ProjectFlowRoles.labels[projectInfo.role] : canEdit() ? 'Edición autorizada' : 'Solo lectura';
     find('pf-email').textContent = user?.email || 'Puedes consultar sin cuenta';
     find('pf-open-login').hidden = !!user;
     find('pf-logout').hidden = !user;
-    if (user && !canEdit()) status('Esta cuenta tiene acceso de solo lectura.');
+    if (user && !canEdit()) status(canSubmit() ? 'Puedes enviar solicitudes desde Mi proyecto.' : 'Esta cuenta tiene acceso de solo lectura.');
     find('pf-open-login').addEventListener('click', () => {
       document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
       document.documentElement.classList.add('pf-locked');
@@ -202,7 +228,7 @@
       find('pf-login').hidden = false;
       find('pf-cancel-login').hidden = false;
       find('pf-retry').hidden = true;
-      message('Entra con la cuenta que el propietario autorizó para editar.');
+      message('Entra con la cuenta invitada a este proyecto.');
       find('pf-email-input').focus();
     });
     find('pf-refresh').addEventListener('click', () => {
@@ -226,10 +252,13 @@
     if (find('pf-session')) { dirty.clear(); location.reload(); return; }
     cache = copy(state.data);
     projectId = state.project_id || projectId;
-    projectInfo = { id: projectId, name: state.name || cache[KEYS[2]]?.project?.name || 'Mi proyecto', canManage: !!state.can_manage, canCreate: !!state.can_create, multi, signedIn: !!session };
+    projectInfo = { id: projectId, name: state.name || cache[KEYS[2]]?.project?.name || 'Mi proyecto',
+      role: stateRole(state), rolesVersion: state.roles_version || 0, canManage: !!state.can_manage,
+      canInvite: state.roles_version ? !!state.can_invite : !!state.can_manage,
+      canCreate: !!state.can_create, multi, signedIn: !!session };
     preserveProjectLinks();
     unlocked = true;
-    editor = ['leader', 'responsible'].includes(state.role);
+    editor = ['admin', 'pm', 'pm_junior'].includes(projectInfo.role);
     applyAccess();
     sessionBar(session?.user);
     gate.hidden = true;
@@ -252,7 +281,7 @@
     }
   }
   window.ProjectFlow = Object.freeze({
-    ready: () => ready, get, set: (key, value) => setMany({ [key]: value }), setMany, markDirty, clean, canEdit, applyAccess, normalizeSchedule,
+    ready: () => ready, get, set: (key, value) => setMany({ [key]: value }), setMany, markDirty, clean, canEdit, canSubmit, submitRequest, checkPermissions, applyAccess, normalizeSchedule,
     project: () => ({ ...projectInfo, name: cache[KEYS[2]]?.project?.name || projectInfo.name }), projectUrl, navigate, projectRpc, inviteEditor
   });
   window.addEventListener('beforeunload', event => {
@@ -289,19 +318,19 @@
     if (url.protocol !== 'https:' || !publicKey || !window.supabase) throw new Error('Configuración incompleta');
     client = window.supabase.createClient(url.origin, key);
     client.auth.onAuthStateChange((event, session) => {
-      if (canEdit() && (event === 'SIGNED_OUT' || !session)) lock('La sesión terminó. Pulsa Reintentar para consultar o vuelve a entrar para editar.');
+      if (canSubmit() && (event === 'SIGNED_OUT' || !session)) lock('La sesión terminó. Pulsa Reintentar para consultar o vuelve a entrar.');
     });
     restore();
     setInterval(async () => {
       if (!unlocked || pending || document.hidden) return;
       try {
         const state = await requestState();
-        if (canEdit() !== ['leader', 'responsible'].includes(state.role)) {
+        if (projectInfo.role !== stateRole(state) || projectInfo.rolesVersion !== (state.roles_version || 0)) {
           lock('Tus permisos cambiaron. Pulsa Reintentar para cargar el acceso actual.');
           return;
         }
         if (!equal(state.data, cache)) {
-          if (canEdit()) status('Hay cambios compartidos. Pulsa Actualizar para verlos.');
+          if (canEdit() || dirty.size) status('Hay cambios compartidos. Pulsa Actualizar para verlos.');
           else {
             cache = copy(state.data);
             document.dispatchEvent(new Event('projectflow:updated'));

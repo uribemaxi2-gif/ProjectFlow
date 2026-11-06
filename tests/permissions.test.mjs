@@ -155,7 +155,7 @@ test('anonymous readers receive saved data without member identities', async () 
   await asUser(null, async () => {
     const result = await getState();
     assert.deepEqual(result.data['equipo14.personas'], { 1: 'Equipo' });
-    assert.deepEqual(Object.keys(result).sort(), ['can_create', 'can_manage', 'data', 'name', 'project_id', 'role', 'updated_at']);
+    assert.deepEqual(Object.keys(result).sort(), ['can_create', 'can_invite', 'can_manage', 'can_submit', 'data', 'name', 'project_id', 'project_role', 'role', 'roles_version', 'updated_at']);
   }, 'anon');
 });
 
@@ -313,7 +313,7 @@ test('the recipient must have a confirmed matching email and their own password'
     assert.equal(result.project_id, inviteProject);
     assert.equal((await rpc('projectflow_get_project', [inviteProject])).role, 'responsible');
     assert.equal((await rpc('projectflow_get_project', [otherInviteProject])).role, 'viewer');
-    assert.equal((await rpc('projectflow_get_project', [inviteProject])).can_create, false);
+    assert.equal((await rpc('projectflow_get_project', [inviteProject])).can_create, true);
     assert.equal((await rpc('projectflow_accept_invitation', [invitation.id])).accepted, true);
     await denied(() => rpc('projectflow_prepare_invitation', [inviteProject, 'else@example.test']));
   });
@@ -359,4 +359,197 @@ test('expired invitations and invitations whose issuer lost ownership cannot be 
   await db.query('update public.projectflow_project_members set active = true where project_id = $1 and user_id = $2', [inviteProject, leader]);
   await db.query('update auth.users set email = $1 where id = $2', ['changed@example.test', newcomer]);
   await asUser(newcomer, () => denied(() => rpc('projectflow_accept_invitation', [invitation.id])));
+});
+
+const qa = '10000000-0000-0000-0000-000000000005';
+const junior = '10000000-0000-0000-0000-000000000006';
+const pm = '10000000-0000-0000-0000-000000000007';
+const admin = '10000000-0000-0000-0000-000000000008';
+const viewer = '10000000-0000-0000-0000-000000000009';
+let rolesProject, unrelatedProject;
+const roleUsers = [[qa, 'qa'], [junior, 'pm_junior'], [pm, 'pm'], [admin, 'admin'], [viewer, 'viewer']];
+
+test('five roles expose only their own capabilities and cannot edit unrelated projects', async () => {
+  rolesProject = (await asUser(leader, () => rpc('projectflow_create_project', ['Roles', null, null, 2]))).project_id;
+  unrelatedProject = (await asUser(leader, () => rpc('projectflow_create_project', ['Ajeno', null, null, 1]))).project_id;
+  for (const [user, role] of roleUsers) {
+    await db.query('insert into auth.users(id,email) values ($1,$2)', [user, role + '@example.test']);
+    await db.query('insert into public.projectflow_project_members(project_id,user_id,role,can_manage) values ($1,$2,$3,$4)', [rolesProject,user,role,role==='admin']);
+    await asUser(user, async () => {
+      const state = await rpc('projectflow_get_project', [rolesProject]);
+      assert.equal(state.project_role, role);
+      assert.equal(state.roles_version, 1);
+      assert.equal(state.can_submit, role !== 'viewer');
+      assert.equal(state.can_invite, ['pm','admin'].includes(role));
+      assert.equal(state.can_manage, role === 'admin');
+      assert.equal(state.can_create, ['pm_junior','pm','admin'].includes(role));
+      assert.equal((await rpc('projectflow_get_project', [unrelatedProject])).project_role, 'viewer');
+      await denied(() => rpc('projectflow_save_project', [unrelatedProject, '[]']));
+      await denied(() => rpc('projectflow_submit_request', [unrelatedProject, '{}']));
+      await denied(() => rpc('projectflow_prepare_invitation_role', [unrelatedProject, 'new@example.test','qa']));
+      await denied(() => db.query('select * from public.projectflow_request_receipts'));
+      await denied(() => rpc('projectflow_update_member', [rolesProject, 'qa@example.test','admin',true]));
+    });
+  }
+});
+
+test('QA appends requests with server-owned status and preserves all project data', async () => {
+  const before = await asUser(leader, () => rpc('projectflow_get_project',[rolesProject]));
+  const payload = {id:crypto.randomUUID(),title:'Corregir pantalla',detail:'La fecha se corta en móvil',category:'Corrección de error',priority:'Alta',requestedBy:'QA'};
+  await asUser(qa, async () => {
+    await denied(() => rpc('projectflow_save_project', [rolesProject, JSON.stringify([update('projecthub.cliente.v1',before.data['projecthub.cliente.v1'],{})])]));
+    const after = await rpc('projectflow_submit_request', [rolesProject,JSON.stringify(payload)]);
+    const request = after.data['projecthub.cliente.v1'].requests[0];
+    assert.equal(request.status,'Pendiente'); assert.equal(request.submittedBy,qa); assert.equal(request.title,payload.title);
+    assert.deepEqual(after.data['equipo14.personas'],before.data['equipo14.personas']);
+    assert.deepEqual(after.data['equipo14.hitos'],before.data['equipo14.hitos']);
+    for (const key of ['project','reviews','agreements']) assert.deepEqual(after.data['projecthub.cliente.v1'][key],before.data['projecthub.cliente.v1'][key]);
+    assert.equal((await rpc('projectflow_submit_request',[rolesProject,JSON.stringify(payload)])).data['projecthub.cliente.v1'].requests.length,1);
+    for (const extra of [{status:'Aprobada'},{decision:'Aceptada'},{submittedBy:leader},{createdAt:'2000-01-01'},{role:'admin'},{requests:[]}]) {
+      await assert.rejects(() => rpc('projectflow_submit_request',[rolesProject,JSON.stringify({...payload,id:crypto.randomUUID(),...extra})]), e=>e.code==='22023');
+    }
+    for (const invalid of [{title:''},{detail:''},{detail:'x'.repeat(5001)},{category:'admin'},{reviewRequired:'true'},{priority:null},{id:'bad'}]) {
+      await assert.rejects(() => rpc('projectflow_submit_request',[rolesProject,JSON.stringify({...payload,...invalid})]), e=>e.code==='22023');
+    }
+  });
+  await asUser(leader, () => assert.rejects(() => rpc('projectflow_save_project',[rolesProject,JSON.stringify([update('projecthub.cliente.v1',before.data['projecthub.cliente.v1'],{})])]),e=>e.code==='40001'));
+  for(const user of [null,viewer]) await asUser(user,()=>denied(()=>rpc('projectflow_submit_request',[rolesProject,JSON.stringify(payload)])),user?'authenticated':'anon');
+});
+
+test('PM menor and PM edit every data section but cannot change roles', async () => {
+  for (const user of [junior,pm,admin]) await asUser(user, async () => {
+    const state = await rpc('projectflow_get_project',[rolesProject]);
+    await rpc('projectflow_save_project',[rolesProject,JSON.stringify(Object.entries(state.data).map(([key,value])=>update(key,value,{...value,testRole:user})))]);
+    if (user!==admin) {
+      await denied(()=>rpc('projectflow_set_member_role',[rolesProject,'qa@example.test','admin']));
+      await denied(()=>rpc('projectflow_set_editor',[rolesProject,'qa@example.test',false]));
+      await denied(()=>rpc('projectflow_list_editors',[rolesProject]));
+    }
+  });
+  for(const user of [qa,junior,viewer]) await asUser(user,()=>denied(()=>rpc('projectflow_prepare_invitation_role',[rolesProject,'candidate@example.test','qa'])));
+});
+
+test('PM invitations are always QA and cannot alter existing users or other invitations', async () => {
+  const invited = '10000000-0000-0000-0000-000000000010';
+  const adminInvite = await asUser(leader,()=>rpc('projectflow_prepare_invitation_role',[rolesProject,'admin-invited@example.test','pm']));
+  let pending;
+  await asUser(pm,async()=>{
+    for (const role of ['viewer','pm_junior','pm','admin']) await denied(()=>rpc('projectflow_prepare_invitation_role',[rolesProject,'candidate@example.test',role]));
+    await assert.rejects(()=>rpc('projectflow_prepare_invitation_role',[rolesProject,'qa@example.test','qa']),e=>e.code==='22023');
+    await denied(()=>rpc('projectflow_prepare_invitation_role',[rolesProject,'admin-invited@example.test','qa']));
+    await assert.rejects(()=>rpc('projectflow_cancel_invitation',[rolesProject,adminInvite.id]),e=>e.code==='22023');
+    pending = await rpc('projectflow_prepare_invitation',[rolesProject,'pm-invited@example.test']);
+    assert.equal(pending.role,'qa');
+    assert.deepEqual((await rpc('projectflow_list_invitations',[rolesProject])).map(i=>i.id),[pending.id]);
+  });
+  await db.query('insert into auth.users(id,email) values ($1,$2)',[invited,pending.email]);
+  await asUser(invited,async()=>{
+    assert.equal((await rpc('projectflow_get_invitation',[pending.id])).role,'qa');
+    await rpc('projectflow_accept_invitation',[pending.id]);
+    assert.equal((await rpc('projectflow_get_project',[rolesProject])).project_role,'qa');
+    await denied(()=>rpc('projectflow_save_project',[rolesProject,'[]']));
+  });
+  await asUser(leader,()=>rpc('projectflow_set_editor',[rolesProject,pending.email,false]));
+  await asUser(pm,()=>assert.rejects(()=>rpc('projectflow_prepare_invitation_role',[rolesProject,pending.email,'qa']),e=>e.code==='22023'));
+  await asUser(invited,()=>assert.rejects(()=>rpc('projectflow_accept_invitation',[pending.id]),e=>e.code==='22023'));
+});
+
+test('admin assigns roles per project and the last admin cannot be removed', async () => {
+  await asUser(leader,async()=>{
+    await rpc('projectflow_set_member_role',[rolesProject,'qa@example.test','pm_junior']);
+    await assert.rejects(()=>rpc('projectflow_set_member_role',[unrelatedProject,'leader@example.test','viewer']),e=>e.code==='22023');
+    await assert.rejects(()=>rpc('projectflow_set_editor',[unrelatedProject,'leader@example.test',false]),e=>e.code==='22023');
+    await assert.rejects(()=>rpc('projectflow_set_member_role',[rolesProject,'qa@example.test','superadmin']),e=>e.code==='22023');
+  });
+  await asUser(qa,async()=>{
+    assert.equal((await rpc('projectflow_get_project',[rolesProject])).project_role,'pm_junior');
+    assert.equal((await rpc('projectflow_get_project',[unrelatedProject])).project_role,'viewer');
+  });
+  await asUser(admin,()=>rpc('projectflow_set_member_role',[rolesProject,'qa@example.test','qa']));
+  const before = await asUser(qa,()=>rpc('projectflow_get_project',[rolesProject]));
+  await db.exec(sql);
+  const after = await asUser(qa,()=>rpc('projectflow_get_project',[rolesProject]));
+  assert.equal(after.project_role,'qa'); assert.deepEqual(after.data,before.data);
+});
+
+test('creating projects preserves PM roles and copies admins without elevating the creator', async () => {
+  for(const [user,role] of [[junior,'pm_junior'],[pm,'pm']]) await asUser(user,async()=>{
+    const result = await rpc('projectflow_create_project_from',[rolesProject,'Nuevo con roles',null,null,3]);
+    assert.equal(result.project_role,role); assert.equal(result.can_manage,false);
+    assert.equal(result.can_invite,role==='pm');
+    await denied(()=>rpc('projectflow_set_member_role',[result.project_id,role+'@example.test','admin']));
+    const admins = await db.query("select user_id from public.projectflow_project_members where project_id=$1",[result.project_id]).catch(e=>e);
+    assert.equal(admins.code,'42501');
+    await denied(()=>rpc('projectflow_create_project_from',[unrelatedProject,'Ajeno',null,null,1]));
+  });
+  for(const user of [qa,viewer]) await asUser(user,()=>denied(()=>rpc('projectflow_create_project_from',[rolesProject,'No permitido',null,null,1])));
+});
+
+test('demoting an inviter invalidates pending grants and downgrades cannot be undone by replay', async () => {
+  const invited='10000000-0000-0000-0000-000000000011';
+  const pending=await asUser(pm,()=>rpc('projectflow_prepare_invitation_role',[rolesProject,'later@example.test','qa']));
+  await db.query('insert into auth.users(id,email) values ($1,$2)',[invited,pending.email]);
+  await asUser(leader,()=>rpc('projectflow_set_member_role',[rolesProject,'pm@example.test','pm_junior']));
+  await asUser(invited,()=>denied(()=>rpc('projectflow_accept_invitation',[pending.id])));
+  await asUser(leader,()=>rpc('projectflow_set_member_role',[rolesProject,'pm@example.test','pm']));
+  await asUser(invited,()=>rpc('projectflow_accept_invitation',[pending.id]));
+  await asUser(leader,()=>rpc('projectflow_set_member_role',[rolesProject,pending.email,'viewer']));
+  await asUser(invited,()=>assert.rejects(()=>rpc('projectflow_accept_invitation',[pending.id]),e=>e.code==='22023'));
+  await db.exec(sql);
+  assert.equal((await asUser(invited,()=>rpc('projectflow_get_project',[rolesProject]))).project_role,'viewer');
+});
+
+test('admin invitations grant exactly their selected role, including viewer and admin', async () => {
+  for (const role of ['viewer','qa','pm_junior','pm','admin']) {
+    const user = crypto.randomUUID(), email = 'invite-'+role+'@example.test';
+    await db.query('insert into auth.users(id,email) values ($1,$2)',[user,email]);
+    const invite = await asUser(admin,()=>rpc('projectflow_prepare_invitation_role',[rolesProject,email,role]));
+    await asUser(user,async()=>{
+      assert.equal((await rpc('projectflow_get_invitation',[invite.id])).role,role);
+      await rpc('projectflow_accept_invitation',[invite.id]);
+      assert.equal((await rpc('projectflow_get_project',[rolesProject])).project_role,role);
+      assert.equal((await rpc('projectflow_get_project',[unrelatedProject])).project_role,'viewer');
+      await rpc('projectflow_accept_invitation',[invite.id]);
+    });
+  }
+});
+
+test('a pre-role database upgrades without restoring revoked accounts or changing pending invitations', async () => {
+  const migrationDb = new PGlite();
+  try {
+    await migrationDb.exec(`
+      create role anon; create role authenticated; create schema auth;
+      create table auth.users(id uuid primary key,email text,encrypted_password text,email_confirmed_at timestamptz);
+      create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+      insert into auth.users(id,email) values ('${leader}','leader@example.test'),('${responsible}','responsible@example.test');
+    `);
+    await migrationDb.exec(await readFile(new URL('./fixtures/private-setup.sql', import.meta.url),'utf8'));
+    await migrationDb.exec(`
+      select public.projectflow_authorize('leader@example.test','leader');
+      select public.projectflow_authorize('responsible@example.test','responsible');
+      alter table public.projectflow_state add column project_id uuid not null default gen_random_uuid() unique;
+      update public.projectflow_state set data='{"preserved":{"value":"kept"}}';
+      create table public.projectflow_project_members (
+        project_id uuid references public.projectflow_state(project_id),user_id uuid references auth.users(id),
+        can_manage boolean not null default false, active boolean not null default true, primary key(project_id,user_id));
+      insert into public.projectflow_project_members select project_id,'${leader}',true,true from public.projectflow_state;
+      insert into public.projectflow_project_members select project_id,'${responsible}',false,false from public.projectflow_state;
+      create table public.projectflow_invitations (
+        id uuid primary key default gen_random_uuid(),project_id uuid references public.projectflow_state(project_id),
+        email text not null,invited_by uuid references auth.users(id),status text not null default 'pending',
+        prepared_at timestamptz default now(),expires_at timestamptz default now()+interval '7 days',
+        accepted_by uuid references auth.users(id),unique(project_id,email));
+      insert into public.projectflow_invitations(project_id,email,invited_by)
+        select project_id,'old-invitation@example.test','${leader}' from public.projectflow_state;
+    `);
+    await migrationDb.exec(sql);
+    let rows=(await migrationDb.query('select user_id,role,active from public.projectflow_project_members order by user_id')).rows;
+    assert.deepEqual(rows,[{user_id:leader,role:'admin',active:true},{user_id:responsible,role:'pm_junior',active:false}]);
+    assert.equal((await migrationDb.query('select role from public.projectflow_invitations')).rows[0].role,'pm_junior');
+    await migrationDb.query("update public.projectflow_project_members set role='qa' where user_id=$1",[responsible]);
+    await migrationDb.exec(sql);
+    rows=(await migrationDb.query('select role,active from public.projectflow_project_members where user_id=$1',[responsible])).rows;
+    assert.deepEqual(rows,[{role:'qa',active:false}]);
+    assert.deepEqual((await migrationDb.query('select data from public.projectflow_state')).rows[0].data,{preserved:{value:'kept'}});
+  } finally { await migrationDb.close(); }
 });

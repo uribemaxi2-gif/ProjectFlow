@@ -65,12 +65,13 @@ reciba podrá consultar sus datos sin cuenta, buscar, filtrar y descargar una co
 No verá tu selector con otros proyectos. Todo el contenido de ese proyecto es
 consultable con su enlace.
 
-Para permitir que alguien edite:
+Para invitar a participar:
 
 1. Activa una vez las [invitaciones por correo](INVITACIONES.md), incluido el SMTP.
-2. Abre el proyecto que quieres compartir como propietario.
-3. Ve a **⚙ Ajustes → Proyecto y enlace → Quién puede editar**, escribe su
-   correo y pulsa **Enviar invitación**.
+2. Abre el proyecto que quieres compartir como admin o PM.
+3. Ve a **⚙ Ajustes → Proyecto y enlace → Roles e invitaciones** (admin) o
+   **Invitar personas** (PM), escribe su correo y pulsa **Enviar invitación**.
+   El admin elige el rol; el PM siempre invita como Consultor / QA.
 4. Esa persona abre el correo, crea su propia contraseña si es nueva y pulsa
    **Aceptar invitación**. Si ya tenía contraseña, la conserva.
 
@@ -80,13 +81,13 @@ Preparar o enviar una invitación no concede edición hasta que se acepte.
 Las invitaciones pendientes se pueden **Reenviar** o **Cancelar** desde ese panel.
 
 Autorizar a alguien en un proyecto **no** le concede edición en los demás.
-Los editores no pueden crear proyectos, conceder permisos ni ver la lista de editores.
-Para retirar el permiso, abre **Quién puede editar → Quitar permiso** en ese proyecto.
+Solo el admin puede cambiar roles y retirar permisos. Para retirar el permiso,
+abre **Roles e invitaciones → Quitar permiso** en ese proyecto.
 La siguiente escritura se rechazará. La lectura seguirá disponible con el enlace.
 
-Los permisos del proyecto original se migran: las cuentas `leader` son propietarios
-y pueden crear proyectos; las cuentas `responsible` solo pueden editar ese proyecto.
-La administración de acceso posterior se hace por proyecto desde la web.
+Los permisos anteriores se migran: los propietarios pasan a Admin y los editores
+a PM menor. Consulta la [guía de roles](ROLES.md) para ver los cinco niveles,
+el envío de solicitudes y cómo conservan su rol los PM al crear proyectos.
 
 ## Guardado, cambios y respaldos
 

@@ -1,6 +1,9 @@
 html.pf-locked .layout, html.pf-locked #pf-session, html.pf-locked dialog { display: none !important; }
 html.pf-locked #pf-projects { display: none !important; }
 html.pf-readonly [data-pf-edit] { display: none !important; }
+html.pf-nosubmit [data-pf-submit] { display: none !important; }
+#pf-access-dialog [hidden], #entry-submit[hidden] { display: none !important; }
+html.pf-readonly [data-pf-submit-form="true"] input, html.pf-readonly [data-pf-submit-form="true"] textarea, html.pf-readonly [data-pf-submit-form="true"] select { background: white; }
 html.pf-readonly [data-pf-field], html.pf-readonly [data-pf-form] input, html.pf-readonly [data-pf-form] textarea, html.pf-readonly [data-pf-form] select { color: #26334d; background: #f5f7fb; opacity: 1; }
 #pf-gate { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: #f5f7fb; color: #172033; font-family: system-ui, sans-serif; }
 #pf-gate[hidden] { display: none; }
@@ -46,6 +49,14 @@ html.pf-readonly [data-pf-field], html.pf-readonly [data-pf-form] input, html.pf
 #pf-editor-list, #pf-invitation-list { list-style: none; padding: 0; }
 #pf-editor-list li, #pf-invitation-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 0; border-bottom: 1px solid #e5e9f1; overflow-wrap: anywhere; }
 #pf-add-editor { margin: 24px 0; padding: 16px; border-radius: 12px; background: #f5f6ff; }
+#pf-access-dialog select { font: inherit; min-width: 0; max-width: 100%; padding: 10px; border: 1px solid #bfc7db; border-radius: 8px; color: #26334d; background: white; }
+#pf-access-dialog button:disabled, #pf-access-dialog select:disabled { opacity: .6; cursor: default; }
+.pf-member-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; width: 100%; }
+#pf-access-dialog .pf-member-controls label { margin: 0; flex: 1 1 180px; }
+.pf-role-help { color: #536178; line-height: 1.5; }
+.pf-access-header { display: flex; align-items: start; gap: 8px; justify-content: space-between; }
+.pf-access-header h2 { margin: 0; }
+#pf-access-dialog [data-close-access] { min-width: 44px; min-height: 44px; flex-shrink: 0; font-size: 1.3rem; }
 .personal-plan { margin: 24px 0; padding: 24px; }
 .plan-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 20px 0; }
 .plan-tabs button { border: 1px solid #bfc7db; border-radius: 8px; padding: 10px; background: white; cursor: pointer; color: #26334d; }

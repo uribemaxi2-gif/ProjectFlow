@@ -44,6 +44,13 @@ class Backend:
         self.emails = []
         self.fail_email = False
         self.invitations_available = True
+        self.role_features = False
+        self.receipts = {}
+        self.fail_after_request = False
+
+    @staticmethod
+    def normalized_role(role):
+        return {'leader': 'admin', 'responsible': 'pm_junior'}.get(role, role)
 
     @staticmethod
     def jwt(email):
@@ -106,7 +113,7 @@ class Backend:
         if not self.multi and name not in ('projectflow_get_state', 'projectflow_save'):
             respond(404, {'code': 'PGRST202', 'message': 'Function not installed'})
             return
-        selected = body.get('p_project_id') or self.default_id
+        selected = body.get('p_project_id') or body.get('p_source_project_id') or self.default_id
         if name in ('projectflow_get_invitation', 'projectflow_accept_invitation'):
             invitation = self.invitations.get(body['p_invitation_id'])
             if not invitation:
@@ -118,32 +125,40 @@ class Backend:
             return
         data = self.data if selected == self.default_id else self.projects[selected]['data']
         roles = self.roles if selected == self.default_id else self.projects[selected]['roles']
-        if name in ('projectflow_prepare_invitation', 'projectflow_list_invitations', 'projectflow_cancel_invitation'):
-            if roles.get(email) != 'leader':
+        role = self.normalized_role(roles.get(email, 'viewer'))
+        if name in ('projectflow_prepare_invitation', 'projectflow_prepare_invitation_role', 'projectflow_list_invitations', 'projectflow_cancel_invitation'):
+            if role not in ('admin', 'pm'):
                 respond(403, {'code': '42501', 'message': 'Solo el propietario puede invitar.'})
                 return
-            if name == 'projectflow_prepare_invitation':
+            if name in ('projectflow_prepare_invitation', 'projectflow_prepare_invitation_role'):
                 target = body['p_email'].strip().lower()
+                invited_role = body.get('p_role', 'qa' if role == 'pm' else 'pm_junior')
+                if role == 'pm' and invited_role != 'qa':
+                    respond(403, {'code': '42501', 'message': 'El PM solo puede invitar como Consultor / QA.'})
+                    return
+                if self.role_features and target in roles:
+                    respond(400, {'code': '22023', 'message': 'Esa cuenta ya tiene un rol.'})
+                    return
                 for key, item in list(self.invitations.items()):
                     if item['email'] == target and item['project_id'] == selected:
                         del self.invitations[key]
                 invitation = {'id': str(uuid.uuid4()), 'email': target, 'project_id': selected,
                               'status': 'pending', 'invited_by': email, 'expired': False,
-                              'expires_at': '2030-01-01T00:00:00Z'}
+                              'expires_at': '2030-01-01T00:00:00Z', 'role': invited_role}
                 self.invitations[invitation['id']] = invitation
                 respond(200, invitation)
             elif name == 'projectflow_list_invitations':
-                respond(200, [item for item in self.invitations.values() if item['project_id'] == selected and item['status'] == 'pending'])
+                respond(200, [item for item in self.invitations.values() if item['project_id'] == selected and item['status'] == 'pending' and (role == 'admin' or item['invited_by'] == email)])
             else:
                 invitation = self.invitations.get(body['p_invitation_id'])
-                if not invitation or invitation['project_id'] != selected or invitation['status'] != 'pending':
+                if not invitation or invitation['project_id'] != selected or invitation['status'] != 'pending' or (role != 'admin' and invitation['invited_by'] != email):
                     respond(400, {'code': '22023', 'message': 'La invitación cambió. Actualiza la lista.'})
                     return
                 invitation['status'] = 'revoked'
                 respond(200, None)
             return
         if name in ('projectflow_get_invitation', 'projectflow_accept_invitation'):
-            if email != invitation['email'] or roles.get(invitation['invited_by']) != 'leader':
+            if email != invitation['email'] or self.normalized_role(roles.get(invitation['invited_by'])) not in ('admin', 'pm'):
                 respond(403, {'code': '42501', 'message': 'Esta invitación no corresponde a tu cuenta.'})
                 return
             if invitation['status'] == 'revoked' or invitation['expired']:
@@ -153,16 +168,22 @@ class Backend:
                 if not self.accounts[email]['has_password']:
                     respond(400, {'code': '22023', 'message': 'Crea primero tu contraseña.'})
                     return
-                roles[email] = 'responsible'
+                roles[email] = invitation['role'] if self.role_features else 'responsible'
                 invitation['status'] = 'accepted'
             respond(200, {'project_id': selected, 'name': data.get(PROJECT, {}).get('project', {}).get('name', 'Mi proyecto'),
-                          'email': email, 'accepted': invitation['status'] == 'accepted', 'has_password': self.accounts[email]['has_password']})
+                          'email': email, 'role': invitation['role'], 'accepted': invitation['status'] == 'accepted', 'has_password': self.accounts[email]['has_password']})
             return
         def state():
             result = {'data': data, 'role': roles.get(email, 'viewer')}
             if self.multi:
                 result.update({'project_id': selected, 'name': data.get(PROJECT, {}).get('project', {}).get('name', 'Mi proyecto'),
                                'can_create': email == 'leader@example.test', 'can_manage': roles.get(email) == 'leader'})
+            if self.role_features:
+                current = self.normalized_role(roles.get(email, 'viewer'))
+                result.update({'project_role': current, 'roles_version': 1, 'can_manage': current == 'admin',
+                               'can_submit': current != 'viewer', 'can_invite': current in ('pm', 'admin'),
+                               'can_create': current in ('pm_junior', 'pm', 'admin'),
+                               'role': 'leader' if current == 'admin' else 'responsible' if current in ('pm_junior', 'pm') else 'viewer'})
             return result
         if name in ('projectflow_get_state', 'projectflow_get_project') and (self.public or email in roles):
             respond(200, state())
@@ -171,27 +192,52 @@ class Backend:
             projects = [(self.default_id, self.data, self.roles)] + [(id, p['data'], p['roles']) for id, p in self.projects.items()]
             respond(200, [{'id': id, 'name': d.get(PROJECT, {}).get('project', {}).get('name', 'Mi proyecto')} for id, d, r in projects if email in r])
             return
-        if name == 'projectflow_create_project' and email == 'leader@example.test':
+        if (name == 'projectflow_create_project' and email == 'leader@example.test') or (name == 'projectflow_create_project_from' and role in ('pm_junior', 'pm', 'admin')):
             selected = str(uuid.uuid4())
             start = datetime.date.fromisoformat(body['p_start']) if body.get('p_start') else None
             weeks = [{'id': str(uuid.uuid4()), 'title': 'Semana '+str(i+1), 'objective': '',
                       'startDate': str(start+datetime.timedelta(days=i*7)) if start else '',
                       'dueDate': str(start+datetime.timedelta(days=i*7+6)) if start else '', 'done': False} for i in range(body['p_weeks'])]
             data = {TEAM:{'schedule':[]}, PLAN:{'weeks':weeks}, PROJECT:{'schema':1,'project':{'name':body['p_name'],'startDate':body.get('p_start') or '', 'targetDate':body.get('p_due') or ''},'requests':[],'reviews':[],'agreements':[],'activity':[]}}
-            roles = {email:'leader'}
+            roles = ({e:r for e,r in roles.items() if self.normalized_role(r) == 'admin'} | {email:role}) if self.role_features else {email:'leader'}
             self.projects[selected] = {'data':data,'roles':roles}
             respond(200, state())
             return
-        if name in ('projectflow_list_editors','projectflow_set_editor') and roles.get(email) == 'leader':
+        if name in ('projectflow_list_editors','projectflow_set_editor','projectflow_set_member_role') and role == 'admin':
+            if name == 'projectflow_set_member_role' or (name == 'projectflow_set_editor' and not body['p_enabled']):
+                target = body['p_email']
+                if self.normalized_role(roles.get(target)) == 'admin' and body.get('p_role') != 'admin' and sum(self.normalized_role(r) == 'admin' for r in roles.values()) == 1:
+                    respond(400, {'code': '22023', 'message': 'El proyecto debe conservar al menos un admin.'})
+                    return
+                for item in self.invitations.values():
+                    if item['email'] == target and item['project_id'] == selected: item['status'] = 'revoked'
+            if name == 'projectflow_set_member_role':
+                roles[body['p_email']] = body['p_role']
             if name == 'projectflow_set_editor':
                 if body['p_enabled']: roles[body['p_email']] = 'responsible'
                 else:
                     roles.pop(body['p_email'], None)
                     for item in self.invitations.values():
                         if item['email'] == body['p_email'] and item['project_id'] == selected: item['status'] = 'revoked'
-            respond(200, [{'email': e,'owner': r == 'leader','active':True} for e,r in roles.items()])
+            respond(200, [{'email': e,'owner': self.normalized_role(r) == 'admin','active':True,'role':self.normalized_role(r),'self':e == email} for e,r in roles.items()])
             return
-        if email not in roles or name not in ('projectflow_save','projectflow_save_project'):
+        if name == 'projectflow_submit_request' and role in ('qa', 'pm_junior', 'pm', 'admin'):
+            payload = body['p_request']
+            receipt_key = (selected, payload['id'])
+            if receipt_key in self.receipts:
+                respond(200, state())
+                return
+            section = data.setdefault(PROJECT, {'schema':1,'project':{},'requests':[],'reviews':[],'agreements':[],'activity':[]})
+            section['requests'].append({**payload,'status':'Pendiente','decision':'','createdDate':'2026-11-05',
+                                        'createdAt':'2026-11-05T12:00:00Z','updatedAt':'2026-11-05T12:00:00Z','submittedBy':email})
+            self.receipts[receipt_key] = copy.deepcopy(payload)
+            if self.fail_after_request:
+                self.fail_after_request = False
+                respond(503, {'code': 'unavailable', 'message': 'Se perdió la respuesta; reintenta la solicitud.'})
+                return
+            respond(200, state())
+            return
+        if role not in ('pm_junior', 'pm', 'admin') or name not in ('projectflow_save','projectflow_save_project'):
             respond(403, {'code': '42501', 'message': 'Acceso denegado'})
             return
         if self.fail_next_save:
@@ -280,7 +326,9 @@ class SharedProjectTests(unittest.TestCase):
         expect(page.locator('#pf-gate')).to_be_hidden()
         selected = parse_qs(urlparse(page.url).query).get('project', [self.backend.default_id])[0]
         roles = self.backend.roles if selected == self.backend.default_id else self.backend.projects[selected]['roles']
-        expect(page.locator('#pf-role')).to_have_text('Edición autorizada' if email in roles else 'Solo lectura')
+        labels = {'viewer':'Usuario · Solo lectura','qa':'Consultor / QA','pm_junior':'PM menor','pm':'PM','admin':'Admin'}
+        expected = labels[self.backend.normalized_role(roles.get(email, 'viewer'))] if self.backend.role_features else 'Edición autorizada' if email in roles else 'Solo lectura'
+        expect(page.locator('#pf-role')).to_have_text(expected)
         self.close_settings(page)
 
     def wait_saved(self, page):
@@ -874,6 +922,132 @@ class SharedProjectTests(unittest.TestCase):
         error = reader.evaluate("ProjectFlow.inviteEditor('someone@example.test').catch(e => e.message)")
         self.assertIn('propietario', error)
         self.assertEqual(self.backend.emails, [])
+
+    def enable_roles(self):
+        self.backend.role_features = True
+        for role in ('qa', 'pm_junior', 'pm', 'viewer'):
+            email = role + '@example.test'
+            self.backend.roles[email] = role
+            self.backend.accounts[email] = {'has_password': True}
+
+    def test_qa_sends_request_without_editing_other_records_and_retry_is_not_duplicated(self):
+        self.enable_roles()
+        page = self.page(mobile=True)
+        page.clock.install()
+        self.login(page, 'qa@example.test', 'proyecto.html')
+        self.set_font_level(page, 7); self.close_settings(page)
+        expect(page.locator('#pf-new-project')).to_be_hidden()
+        expect(page.locator('#pf-project-access')).to_be_hidden()
+        page.locator('#page-resumen [data-create="solicitudes"]').click()
+        expect(page.locator('#f-status')).to_have_count(0)
+        expect(page.locator('#f-decision')).to_have_count(0)
+        expect(page.locator('#delete-entry')).to_be_hidden()
+        page.locator('#f-title').fill('Error de lectura en móvil')
+        page.locator('#f-detail').fill('El texto de la fecha se corta')
+        page.locator('#f-category').select_option('Corrección de error')
+        self.backend.data[TEAM] = {'schedule': [{'id':'another-task','title':'Cambio de PM','done':False}]}
+        page.clock.fast_forward(31000)
+        expect(page.locator('#f-title')).to_have_value('Error de lectura en móvil')
+        expect(page.locator('#edit-dialog')).to_be_visible()
+        self.assertTrue(page.locator('#edit-dialog').evaluate('(el) => el.scrollWidth <= el.clientWidth'))
+        self.backend.fail_after_request = True
+        page.locator('#entry-submit').click()
+        expect(page.locator('#sync-label')).to_have_text('No guardado')
+        expect(page.locator('#f-title')).to_have_value('Error de lectura en móvil')
+        page.locator('#entry-submit').click()
+        expect(page.locator('#edit-dialog')).to_be_hidden()
+        self.assertEqual(len(self.backend.data[PROJECT]['requests']), 1)
+        self.assertEqual(self.backend.data[PROJECT]['requests'][0]['status'], 'Pendiente')
+        self.assertEqual(self.backend.data[TEAM]['schedule'][0]['title'], 'Cambio de PM')
+        if page.locator('#pf-menu-toggle').get_attribute('aria-expanded') == 'false': page.locator('#pf-menu-toggle').click()
+        page.locator('.side-link[data-page="solicitudes"]').click()
+        page.locator('[data-view-kind="requests"]').click()
+        expect(page.locator('#f-title')).to_have_attribute('readonly', '')
+        expect(page.locator('#entry-submit')).to_be_hidden()
+        expect(page.locator('#delete-entry')).to_be_hidden()
+        page.locator('#entry-form [data-close]').click()
+        page.goto(self.base + '/index.html')
+        expect(page.locator('#agenda-add')).to_be_hidden()
+        expect(page.locator('.agenda-title input')).to_have_attribute('readonly', '')
+
+    def test_pm_junior_can_create_and_edit_but_cannot_invite_or_promote_self(self):
+        self.enable_roles()
+        page = self.page(); self.login(page, 'pm_junior@example.test')
+        expect(page.locator('#agenda-add')).to_be_visible()
+        self.open_settings(page)
+        expect(page.locator('#pf-project-access')).to_be_hidden()
+        project = self.create_project(page, 'Proyecto del PM menor', 3, '2026-12-01')
+        self.assertEqual(self.backend.projects[project]['roles']['pm_junior@example.test'], 'pm_junior')
+        self.assertEqual(self.backend.projects[project]['roles']['leader@example.test'], 'leader')
+        expect(page.locator('#pf-role')).to_have_text('PM menor')
+        expect(page.locator('#pf-project-access')).to_be_hidden()
+        page.locator('#agenda-add').click()
+        self.wait_saved(page)
+        self.assertEqual(len(self.backend.projects[project]['data'][TEAM]['schedule']), 1)
+        error = page.evaluate("ProjectFlow.projectRpc('projectflow_set_member_role', {p_project_id:ProjectFlow.project().id,p_email:'pm_junior@example.test',p_role:'admin'}).catch(e=>e.message)")
+        self.assertIn('denegado', error)
+
+    def test_pm_invites_only_qa_and_recipient_sees_role_before_accepting(self):
+        self.enable_roles()
+        page = self.page(); self.login(page, 'pm@example.test')
+        self.settings_click(page, '#pf-project-access')
+        expect(page.locator('#pf-members-section')).to_be_hidden()
+        expect(page.locator('#pf-invite-role')).to_be_hidden()
+        expect(page.locator('#pf-invite-help')).to_contain_text('Consultor / QA')
+        page.locator('#pf-add-editor [name="email"]').fill('outsider@example.test')
+        page.locator('#pf-add-editor button[type="submit"]').click()
+        expect(page.locator('#pf-access-message')).to_contain_text('Invitación enviada')
+        expect(page.locator('#pf-invitation-list')).to_contain_text('Consultor / QA')
+        self.assertEqual(next(iter(self.backend.invitations.values()))['role'], 'qa')
+        recipient = self.page(); self.open_invitation(recipient, 'outsider@example.test')
+        expect(recipient.locator('#inv-role')).to_have_text('Rol: Consultor / QA')
+        expect(recipient.locator('#inv-permissions')).to_contain_text('enviar solicitudes')
+        recipient.locator('#inv-submit').click()
+        expect(recipient.locator('#pf-role')).to_have_text('Consultor / QA')
+        expect(recipient.locator('#agenda-add')).to_be_hidden()
+
+    def test_admin_changes_roles_and_cannot_remove_last_admin(self):
+        self.enable_roles()
+        page = self.page(mobile=True); self.login(page)
+        self.settings_click(page, '#pf-project-access')
+        qa = page.locator('#pf-editor-list li').filter(has_text='qa@example.test')
+        qa.locator('select').select_option('pm')
+        qa.get_by_role('button', name='Guardar rol').click()
+        expect(page.locator('#pf-access-message')).to_contain_text('Rol actualizado: PM')
+        self.assertEqual(self.backend.roles['qa@example.test'], 'pm')
+        admin = page.locator('#pf-editor-list li').filter(has_text='leader@example.test')
+        admin.locator('select').select_option('viewer')
+        admin.get_by_role('button', name='Guardar rol').click()
+        expect(page.locator('#pf-access-message')).to_contain_text('al menos un admin')
+        self.assertEqual(self.backend.roles['leader@example.test'], 'leader')
+        self.assertTrue(page.locator('#pf-access-dialog').evaluate('(el) => el.scrollWidth <= el.clientWidth'))
+        page.locator('#pf-add-editor [name="email"]').fill('new-admin@example.test')
+        page.locator('#pf-invite-role').select_option('admin')
+        page.locator('#pf-add-editor button[type="submit"]').click()
+        expect(page.locator('#pf-access-message')).to_contain_text('rol Admin')
+        self.assertEqual(next(iter(self.backend.invitations.values()))['role'], 'admin')
+
+    def test_role_change_detected_even_when_general_edit_permission_is_unchanged(self):
+        self.enable_roles()
+        page = self.page(); page.clock.install()
+        self.login(page, 'pm@example.test')
+        self.backend.roles['pm@example.test'] = 'pm_junior'
+        page.clock.fast_forward(31000)
+        expect(page.locator('#pf-gate')).to_be_visible()
+        expect(page.locator('#pf-message')).to_contain_text('Tus permisos cambiaron')
+        page.locator('#pf-retry').click()
+        expect(page.locator('#pf-role')).to_have_text('PM menor')
+        expect(page.locator('#pf-project-access')).to_be_hidden()
+
+    def test_roles_keep_public_reading_without_an_account(self):
+        self.enable_roles()
+        page = self.page()
+        for path in ('index.html','cronograma.html','proyecto.html'):
+            page.goto(self.base + '/' + path)
+            expect(page.locator('#pf-role')).to_have_text('Usuario · Solo lectura')
+            expect(page.locator('.layout')).to_be_visible()
+            expect(page.locator('#pf-project-access')).to_be_hidden()
+            for control in page.locator('[data-pf-edit], [data-pf-submit]').all(): expect(control).to_be_hidden()
 
     def test_custom_week_removal_preserves_task_dates_and_unassigns_tasks(self):
         page = self.page(); self.login(page)

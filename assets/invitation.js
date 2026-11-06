@@ -46,10 +46,13 @@
     find('inv-email').textContent = data.session.user.email || '';
     invitation = await rpc('projectflow_get_invitation');
     find('inv-project').textContent = invitation.name;
+    const role = invitation.role || 'pm_junior';
+    find('inv-role').textContent = 'Rol: ' + (ProjectFlowRoles.labels[role] || 'Acceso al proyecto');
+    find('inv-permissions').textContent = (ProjectFlowRoles.descriptions[role] || '') + ' El permiso corresponde únicamente a este proyecto.';
     showPassword(!invitation.has_password);
     find('inv-submit').textContent = invitation.accepted ? 'Entrar al proyecto' : 'Aceptar invitación';
     find('inv-accept').hidden = false;
-    message(invitation.accepted ? 'Ya aceptaste esta invitación.' : 'Te invitaron a editar este proyecto.');
+    message(invitation.accepted ? 'Ya aceptaste esta invitación.' : 'Te invitaron a participar en este proyecto.');
   }
   async function reload() {
     if (busy) return;

@@ -22,7 +22,8 @@
     </form>
     <form id="inv-accept" hidden>
       <h2 id="inv-project"></h2>
-      <p>Podrás agregar y editar datos únicamente en este proyecto. Esto no te da acceso de edición a otros proyectos.</p>
+      <p id="inv-role"></p>
+      <p id="inv-permissions">El permiso corresponde únicamente a este proyecto.</p>
       <fieldset id="inv-new-password" hidden>
         <legend>Crea tu contraseña de ProjectFlow</legend>
         <p>Es personal. No necesitas compartirla con quien te invitó.</p>
@@ -38,6 +39,7 @@
     <noscript>Activa JavaScript para aceptar la invitación.</noscript>
   </main>
   <script src="config.js"></script>
+<script src="assets/roles.js"></script>
   <script src="assets/vendor/supabase.js"></script>
   <script src="assets/invitation.js"></script>
 </body>
