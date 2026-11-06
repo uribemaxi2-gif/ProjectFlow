@@ -87,13 +87,23 @@ el permiso de edición se valida por separado al aceptar la invitación.
 1. Entra como admin o PM y selecciona el proyecto.
 2. Abre **⚙ Ajustes → Proyecto y enlace → Roles e invitaciones** (admin) o **Invitar personas** (PM).
 3. Escribe el correo. El admin elige el rol; el PM siempre invita como Consultor / QA. Pulsa **Enviar invitación**.
-4. La persona abre el correo, elige su contraseña si es nueva y pulsa
-   **Aceptar invitación**. Puede hacerlo desde otro dispositivo o navegador.
+4. La persona abre el correo y crea su contraseña. Si ya conoce una contraseña
+   de ProjectFlow, elige **Ya conozco mi contraseña y quiero conservarla** y la
+   escribe para confirmarla. Luego pulsa **Aceptar invitación**. Puede hacerlo
+   desde otro dispositivo o navegador.
 5. Comprueba que aparece en **Personas con acceso** de ese proyecto.
 
 El remitente conserva su sesión. El destinatario conserva su contraseña si ya tenía
 cuenta y recibe únicamente el rol indicado en la invitación para ese proyecto.
 Después podrá entrar con su correo y contraseña desde los ajustes de la web.
+
+Si alguien ya aceptó una invitación y sigue dentro de la aplicación, puede usar
+**⚙ Ajustes → Mi cuenta → Crear o cambiar contraseña**. Esta opción permite
+definir su contraseña personal sin pedirla al admin ni modificar sus roles.
+Si ya cerró sesión, en **Entrar a mi cuenta** puede escribir su correo y pulsar
+**Recibir enlace por correo**. Al abrir ese enlace vuelve a entrar y puede definir
+la contraseña en Mi cuenta. Este acceso solo sirve para cuentas existentes y no
+concede permisos de proyecto nuevos.
 
 **Reenviar** crea un enlace nuevo e invalida la invitación anterior; espera al menos
 un minuto entre intentos al mismo correo. Una invitación pendiente dura siete días,
@@ -129,6 +139,12 @@ de la migración. `npm run test:browser` usa Supabase simulado para comprobar
 envío, errores, contraseña del destinatario, móvil y conservación de la sesión.
 No envían correos reales. Después de configurar SMTP hay que comprobar una
 invitación real con un destinatario acordado.
+
+Supabase puede crear una contraseña aleatoria al registrar una cuenta con OTP.
+Por eso la existencia de `encrypted_password` no demuestra que la persona conozca
+una contraseña. La pantalla pide crear una o confirmar una existente mediante
+Supabase Auth; no omite este paso por la presencia de ese campo. Las pruebas de
+navegador simulan también ese registro con una contraseña automática desconocida.
 
 La web utiliza la clave pública de Supabase. Las tablas de invitaciones y permisos
 tienen RLS y no son accesibles directamente; las funciones de base de datos

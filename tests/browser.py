@@ -47,6 +47,8 @@ class Backend:
         self.role_features = False
         self.receipts = {}
         self.fail_after_request = False
+        self.password_updates = []
+        self.fail_password_update = False
 
     @staticmethod
     def normalized_role(role):
@@ -73,7 +75,9 @@ class Backend:
             respond(200, {})
             return
         if path == '/auth/v1/token':
-            if body.get('password') != 'test-password-only':
+            email = body.get('email', '')
+            expected = self.accounts.get(email, {}).get('password', 'test-password-only')
+            if body.get('password') != expected:
                 respond(400, {'error': 'invalid_grant', 'error_description': 'Invalid login credentials'})
                 return
             email = body['email']
@@ -90,8 +94,9 @@ class Backend:
             if self.fail_email:
                 respond(400, {'code': 'email_address_not_authorized', 'msg': 'Email sending is not configured'})
                 return
-            self.accounts.setdefault(body['email'], {'has_password': False})
-            self.emails.append({'email': body['email'], 'redirect': parse_qs(urlparse(request.url).query)['redirect_to'][0]})
+            # GoTrue creates a random password hash for OTP signups; the user does not know it.
+            self.accounts.setdefault(body['email'], {'has_password': True, 'password': 'random-unknown-otp-password'})
+            self.emails.append({'email': body['email'], 'redirect': parse_qs(urlparse(request.url).query)['redirect_to'][0], 'create_user': body.get('create_user')})
             respond(200, {})
             return
         token = request.headers.get('authorization', '').removeprefix('Bearer ')
@@ -102,7 +107,12 @@ class Backend:
             email = ''
         if path == '/auth/v1/user':
             if request.method == 'PUT' and 'password' in body:
+                if self.fail_password_update:
+                    respond(422, {'code': 'weak_password', 'msg': 'Password update failed'})
+                    return
                 self.accounts[email]['has_password'] = True
+                self.accounts[email]['password'] = body['password']
+                self.password_updates.append(email)
             respond(200, {'id': email, 'email': email, 'aud': 'authenticated', 'role': 'authenticated',
                           'email_confirmed_at': '2026-01-01T00:00:00Z', 'app_metadata': {}, 'user_metadata': {}})
             return
@@ -316,12 +326,12 @@ class SharedProjectTests(unittest.TestCase):
             slider.press('ArrowRight')
         expect(slider).to_have_value(str(level))
 
-    def login(self, page, email='leader@example.test', path='index.html'):
+    def login(self, page, email='leader@example.test', path='index.html', password='test-password-only'):
         page.goto(self.base + '/' + path)
         if self.backend.public:
             self.settings_click(page, '#pf-open-login')
         page.locator('#pf-email-input').fill(email)
-        page.locator('#pf-password').fill('test-password-only')
+        page.locator('#pf-password').fill(password)
         page.locator('#pf-enter').click()
         expect(page.locator('#pf-gate')).to_be_hidden()
         selected = parse_qs(urlparse(page.url).query).get('project', [self.backend.default_id])[0]
@@ -812,6 +822,9 @@ class SharedProjectTests(unittest.TestCase):
         self.assertNotIn('responsible@example.test', self.backend.projects[first]['roles'])
         recipient = self.page()
         self.open_invitation(recipient, 'responsible@example.test')
+        expect(recipient.locator('#inv-new-password')).to_be_visible()
+        recipient.locator('[name="password-mode"][value="existing"]').check()
+        recipient.locator('#inv-current-password').fill('test-password-only')
         expect(recipient.locator('#inv-password-kept')).to_be_visible()
         expect(recipient.locator('#inv-new-password')).to_be_hidden()
         recipient.locator('#inv-submit').click()
@@ -852,13 +865,112 @@ class SharedProjectTests(unittest.TestCase):
         recipient.locator('#inv-confirm').fill('different-password')
         recipient.locator('#inv-submit').click()
         expect(recipient.locator('#inv-message')).to_contain_text('no coinciden')
-        self.assertFalse(self.backend.accounts['new@example.test']['has_password'])
+        self.assertTrue(self.backend.accounts['new@example.test']['has_password'])
+        self.assertEqual(self.backend.password_updates, [])
         recipient.locator('#inv-confirm').fill('my-private-password')
         recipient.locator('#inv-submit').click()
         expect(recipient.locator('#pf-role')).to_have_text('Edición autorizada')
         self.assertEqual(parse_qs(urlparse(recipient.url).query)['project'], [project])
         self.assertNotIn('new@example.test', self.backend.roles)
         self.assertTrue(self.backend.accounts['new@example.test']['has_password'])
+
+    def test_invitation_does_not_accept_when_password_update_or_existing_password_fails(self):
+        self.enable_roles()
+        owner = self.page(); self.login(owner)
+        self.invite(owner, 'new@example.test')
+        recipient = self.page(); self.open_invitation(recipient, 'new@example.test')
+        expect(recipient.locator('#inv-new-password')).to_be_visible()
+        recipient.locator('[name="password-mode"][value="existing"]').check()
+        recipient.locator('#inv-current-password').fill('incorrect-password')
+        recipient.locator('#inv-submit').click()
+        expect(recipient.locator('#inv-message')).to_contain_text('no es correcta')
+        self.assertNotIn('new@example.test', self.backend.roles)
+        recipient.locator('[name="password-mode"][value="new"]').check()
+        recipient.locator('#inv-password').fill('my-chosen-password')
+        recipient.locator('#inv-confirm').fill('my-chosen-password')
+        self.backend.fail_password_update = True
+        recipient.locator('#inv-submit').click()
+        expect(recipient.locator('#inv-message')).to_contain_text('No se pudo guardar')
+        self.assertNotIn('new@example.test', self.backend.roles)
+        self.assertEqual(self.backend.password_updates, [])
+        self.backend.fail_password_update = False
+        recipient.locator('#inv-submit').click()
+        expect(recipient.locator('#pf-role')).to_have_text('Consultor / QA')
+        self.assertEqual(self.backend.password_updates, ['new@example.test'])
+        returning = self.page()
+        self.login(returning, 'new@example.test', password='my-chosen-password')
+        expect(returning.locator('#pf-role')).to_have_text('Consultor / QA')
+
+    def test_existing_recipient_confirms_password_without_replacing_it(self):
+        self.enable_roles()
+        owner = self.page(); self.login(owner)
+        self.invite(owner, 'outsider@example.test')
+        recipient = self.page(); self.open_invitation(recipient, 'outsider@example.test')
+        recipient.locator('[name="password-mode"][value="existing"]').check()
+        recipient.locator('#inv-current-password').fill('test-password-only')
+        recipient.locator('#inv-submit').click()
+        expect(recipient.locator('#pf-role')).to_have_text('Consultor / QA')
+        self.assertEqual(self.backend.password_updates, [])
+        returning = self.page(); self.login(returning, 'outsider@example.test')
+        expect(returning.locator('#pf-role')).to_have_text('Consultor / QA')
+
+    def test_already_accepted_user_can_define_password_in_settings_and_sign_in_again(self):
+        self.enable_roles()
+        self.backend.accounts['qa@example.test']['password'] = 'unknown-temporary-password'
+        page = self.page(mobile=True)
+        # Simulate a recipient who accepted with the old flow and still has a session.
+        owner = self.page(); self.login(owner)
+        email = self.invite(owner, 'outsider@example.test')
+        self.open_invitation(page, 'qa@example.test', email)
+        page.goto(self.base + '/index.html')
+        expect(page.locator('#pf-role')).to_have_text('Consultor / QA')
+        self.set_font_level(page, 7)
+        page.locator('#pf-set-password').click()
+        page.locator('#pf-new-password').fill('my-new-known-password')
+        page.locator('#pf-confirm-password').fill('not-the-same-password')
+        page.locator('#pf-password-form button[type="submit"]').click()
+        expect(page.locator('#pf-password-error')).to_contain_text('no coinciden')
+        self.assertEqual(self.backend.password_updates, [])
+        page.locator('#pf-confirm-password').fill('my-new-known-password')
+        self.backend.fail_password_update = True
+        page.locator('#pf-password-form button[type="submit"]').click()
+        expect(page.locator('#pf-password-error')).to_contain_text('No se pudo guardar')
+        self.assertTrue(page.locator('#pf-password-dialog').evaluate('(el) => el.scrollWidth <= el.clientWidth'))
+        self.backend.fail_password_update = False
+        page.locator('#pf-password-form button[type="submit"]').click()
+        expect(page.locator('#pf-password-dialog')).to_be_hidden()
+        expect(page.locator('#pf-new-password')).to_have_value('')
+        expect(page.locator('#pf-password-feedback')).to_contain_text('Contraseña guardada')
+        self.assertEqual(self.backend.password_updates, ['qa@example.test'])
+        self.assertEqual(self.backend.roles['qa@example.test'], 'qa')
+        self.assertNotIn('password', self.backend.accounts['leader@example.test'])
+        page.locator('#pf-logout').click()
+        expect(page.locator('#pf-role')).to_have_text('Usuario · Solo lectura')
+        expect(page.locator('#pf-set-password')).to_be_hidden()
+        self.login(page, 'qa@example.test', password='my-new-known-password')
+        expect(page.locator('#pf-role')).to_have_text('Consultor / QA')
+
+    def test_existing_recipient_can_reenter_by_email_and_set_password_without_role_changes(self):
+        self.enable_roles()
+        page = self.page()
+        page.goto(self.base + '/index.html')
+        self.settings_click(page, '#pf-open-login')
+        page.locator('#pf-email-input').fill('qa@example.test')
+        page.locator('#pf-login-link').click()
+        expect(page.locator('#pf-message')).to_contain_text('Revisa tu correo')
+        self.assertFalse(self.backend.emails[-1]['create_user'])
+        self.assertEqual(self.backend.roles['qa@example.test'], 'qa')
+        self.assertEqual(self.backend.invitations, {})
+        self.open_invitation(page, 'qa@example.test')
+        expect(page.locator('#pf-role')).to_have_text('Consultor / QA')
+        self.settings_click(page, '#pf-set-password')
+        page.locator('#pf-new-password').fill('password-after-email-link')
+        page.locator('#pf-confirm-password').fill('password-after-email-link')
+        page.locator('#pf-password-form button[type="submit"]').click()
+        expect(page.locator('#pf-password-feedback')).to_contain_text('Contraseña guardada')
+        self.assertEqual(self.backend.roles['qa@example.test'], 'qa')
+        another_device = self.page()
+        self.login(another_device, 'qa@example.test', password='password-after-email-link')
 
     def test_email_failure_is_pending_and_can_be_resent_or_cancelled(self):
         owner = self.page(mobile=True); self.login(owner)
@@ -1002,6 +1114,8 @@ class SharedProjectTests(unittest.TestCase):
         recipient = self.page(); self.open_invitation(recipient, 'outsider@example.test')
         expect(recipient.locator('#inv-role')).to_have_text('Rol: Consultor / QA')
         expect(recipient.locator('#inv-permissions')).to_contain_text('enviar solicitudes')
+        recipient.locator('[name="password-mode"][value="existing"]').check()
+        recipient.locator('#inv-current-password').fill('test-password-only')
         recipient.locator('#inv-submit').click()
         expect(recipient.locator('#pf-role')).to_have_text('Consultor / QA')
         expect(recipient.locator('#agenda-add')).to_be_hidden()

@@ -22,6 +22,9 @@ al tocar fuera. **⚙ Ajustes** abre una pantalla propia con **Mi cuenta**,
 **Apariencia** y **Proyecto y enlace**. El botón **Volver** y el botón Atrás del
 navegador regresan al proyecto sin perder formularios pendientes de guardar.
 El nombre del proyecto y el estado de guardado siguen visibles.
+En **Mi cuenta → Crear o cambiar contraseña**, cada persona con sesión puede
+definir su propia contraseña para volver a entrar con su correo, incluidos quienes
+aceptaron anteriormente una invitación sin haber elegido contraseña.
 
 **Tamaño de letra** tiene siete niveles, con vista previa y aplicación inmediata
 a toda la web. Son 87,5 %, 93,75 %, 100 %, 112,5 %, 125 %, 137,5 % y 150 % del

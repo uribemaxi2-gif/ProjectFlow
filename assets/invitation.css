@@ -7,6 +7,8 @@ h2 { font-size: 1.3rem; margin-top: 24px; }
 p { color: #536178; }
 label { display: block; margin: 18px 0; font-weight: 650; }
 input { display: block; width: 100%; min-width: 0; font: inherit; color: #172033; border: 1px solid #acb6c7; border-radius: 10px; padding: 12px; margin-top: 8px; background: white; }
+.password-option { display: flex; gap: 12px; align-items: start; font-weight: 500; cursor: pointer; }
+.password-option input { width: 20px; height: 20px; flex-shrink: 0; margin: 3px 0 0; accent-color: #5556d9; }
 button { min-height: 48px; max-width: 100%; font: inherit; font-weight: 650; padding: 12px 16px; border: 1px solid #bfc7db; border-radius: 10px; background: #f5f7fb; color: #26334d; cursor: pointer; }
 button[type=submit] { width: 100%; margin-top: 8px; background: #5556d9; border-color: #5556d9; color: white; }
 button:disabled { opacity: .6; cursor: wait; }

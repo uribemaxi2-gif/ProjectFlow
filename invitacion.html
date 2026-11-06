@@ -24,6 +24,11 @@
       <h2 id="inv-project"></h2>
       <p id="inv-role"></p>
       <p id="inv-permissions">El permiso corresponde únicamente a este proyecto.</p>
+      <fieldset id="inv-password-options" hidden>
+        <legend>Tu acceso a ProjectFlow</legend>
+        <label class="password-option"><input type="radio" name="password-mode" value="new" checked>Crear o cambiar mi contraseña</label>
+        <label class="password-option"><input type="radio" name="password-mode" value="existing">Ya conozco mi contraseña y quiero conservarla</label>
+      </fieldset>
       <fieldset id="inv-new-password" hidden>
         <legend>Crea tu contraseña de ProjectFlow</legend>
         <p>Es personal. No necesitas compartirla con quien te invitó.</p>
@@ -31,7 +36,11 @@
         <label>Repite la contraseña<input id="inv-confirm" type="password" autocomplete="new-password" minlength="10" required></label>
         <p>Usa al menos 10 caracteres.</p>
       </fieldset>
-      <p id="inv-password-kept" hidden>Tu cuenta ya tiene contraseña. La conservarás al aceptar.</p>
+      <fieldset id="inv-existing-password" hidden disabled>
+        <p id="inv-password-kept">Escribe tu contraseña actual de ProjectFlow para confirmarla. No se cambiará.</p>
+        <label>Contraseña actual<input id="inv-current-password" type="password" autocomplete="current-password" required></label>
+      </fieldset>
+      <p id="inv-password-ready" hidden>Tu contraseña está preparada. Ya puedes continuar.</p>
       <button type="submit" id="inv-submit">Aceptar invitación</button>
     </form>
     <button type="button" id="inv-retry" hidden>Reintentar</button>

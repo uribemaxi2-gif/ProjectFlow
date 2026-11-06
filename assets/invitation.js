@@ -9,18 +9,24 @@
   const find = id => document.getElementById(id);
   const invitationId = new URL(location.href).searchParams.get('invitation');
   const callbackError = new URLSearchParams(location.hash.slice(1)).get('error');
-  let client, invitation, busy = false;
+  let client, invitation, busy = false, passwordReady = false;
   function message(text, error = false) { find('inv-message').textContent = text; find('inv-message').dataset.error = String(error); }
   function setBusy(value) {
     busy = value;
     document.querySelectorAll('button').forEach(button => button.disabled = value);
+    document.querySelectorAll('input').forEach(input => input.disabled = value);
   }
-  function showPassword(required) {
-    find('inv-new-password').hidden = !required;
-    find('inv-new-password').disabled = !required;
-    find('inv-password-kept').hidden = required;
+  function showPassword() {
+    const create = document.querySelector('[name="password-mode"]:checked').value === 'new';
+    find('inv-password-options').hidden = passwordReady || !invitation?.has_password;
+    find('inv-new-password').hidden = passwordReady || !create;
+    find('inv-new-password').disabled = passwordReady || !create;
+    find('inv-existing-password').hidden = passwordReady || create;
+    find('inv-existing-password').disabled = passwordReady || create;
+    find('inv-password-ready').hidden = !passwordReady;
   }
-  function clearPassword() { find('inv-password').value = ''; find('inv-confirm').value = ''; }
+  function clearPassword() { find('inv-password').value = ''; find('inv-confirm').value = ''; find('inv-current-password').value = ''; }
+  document.querySelectorAll('[name="password-mode"]').forEach(input => input.addEventListener('change', () => { clearPassword(); showPassword(); }));
   async function rpc(name) {
     const { data, error } = await client.rpc(name, { p_invitation_id: invitationId });
     if (error) throw error;
@@ -32,7 +38,7 @@
     return 'No se pudo completar la operación. Revisa tu conexión y vuelve a intentarlo.';
   }
   async function load() {
-    invitation = null;
+    invitation = null; passwordReady = false;
     find('inv-login').hidden = true; find('inv-accept').hidden = true; find('inv-retry').hidden = true;
     find('inv-account').hidden = true; clearPassword();
     const { data, error } = await client.auth.getSession();
@@ -49,7 +55,10 @@
     const role = invitation.role || 'pm_junior';
     find('inv-role').textContent = 'Rol: ' + (ProjectFlowRoles.labels[role] || 'Acceso al proyecto');
     find('inv-permissions').textContent = (ProjectFlowRoles.descriptions[role] || '') + ' El permiso corresponde únicamente a este proyecto.';
-    showPassword(!invitation.has_password);
+    // Supabase puede guardar una contraseña aleatoria al crear cuentas con OTP.
+    // has_password no demuestra que el destinatario conozca esa contraseña.
+    document.querySelector('[name="password-mode"][value="new"]').checked = true;
+    showPassword();
     find('inv-submit').textContent = invitation.accepted ? 'Entrar al proyecto' : 'Aceptar invitación';
     find('inv-accept').hidden = false;
     message(invitation.accepted ? 'Ya aceptaste esta invitación.' : 'Te invitaron a participar en este proyecto.');
@@ -63,26 +72,35 @@
   }
   find('inv-login').addEventListener('submit', async event => {
     event.preventDefault(); if (busy) return;
-    setBusy(true);
     const form = event.currentTarget, values = new FormData(form);
+    setBusy(true);
     try {
       const { error } = await client.auth.signInWithPassword({ email: values.get('email').trim(), password: values.get('password') });
       if (error) { message('No se pudo entrar. Revisa tu correo y contraseña, o pide un nuevo enlace de invitación.', true); return; }
       form.reset(); await load();
+      if (invitation) { passwordReady = true; showPassword(); }
     } catch (error) { message(explain(error), true); }
     finally { setBusy(false); }
   });
   find('inv-accept').addEventListener('submit', async event => {
     event.preventDefault(); if (busy || !invitation) return;
-    if (!invitation.has_password && find('inv-password').value !== find('inv-confirm').value) {
+    const create = document.querySelector('[name="password-mode"]:checked').value === 'new';
+    if (!passwordReady && create && find('inv-password').value !== find('inv-confirm').value) {
       message('Las contraseñas no coinciden.', true); find('inv-confirm').focus(); return;
     }
     setBusy(true); message('Guardando tu acceso…');
     try {
-      if (!invitation.has_password) {
-        const { error } = await client.auth.updateUser({ password: find('inv-password').value });
-        if (error) { message('No se pudo crear tu contraseña. Usa al menos 10 caracteres y respeta los requisitos de contraseña de la aplicación.', true); return; }
-        invitation.has_password = true; clearPassword(); showPassword(false);
+      if (!passwordReady) {
+        const { error } = create
+          ? await client.auth.updateUser({ password: find('inv-password').value })
+          : await client.auth.signInWithPassword({ email: invitation.email, password: find('inv-current-password').value });
+        if (error) {
+          message(create
+            ? error.code === 'same_password' ? 'Esa ya es tu contraseña actual. Elige conservarla y confírmala para continuar.' : 'No se pudo guardar la contraseña. Usa al menos 10 caracteres y vuelve a intentarlo.'
+            : 'La contraseña actual no es correcta. Revisa lo escrito o elige crear una nueva.', true);
+          return;
+        }
+        passwordReady = true; clearPassword(); showPassword();
       }
       const accepted = await rpc('projectflow_accept_invitation');
       const destination = new URL('index.html', location.href);

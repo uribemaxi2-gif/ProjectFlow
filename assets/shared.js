@@ -22,6 +22,8 @@
       <label for="pf-email-input">Correo</label><input id="pf-email-input" type="email" autocomplete="username" required>
       <label for="pf-password">Contraseña</label><input id="pf-password" type="password" autocomplete="current-password" required>
       <button type="submit" id="pf-enter">Entrar</button>
+      <button type="button" id="pf-login-link">Recibir enlace por correo</button>
+      <p>Si aún no tienes contraseña o no la recuerdas, recibe un enlace para entrar y definirla en Mi cuenta.</p>
     </form>
     <p id="pf-message" role="status" aria-live="polite">Cargando datos compartidos…</p>
     <button id="pf-retry" type="button" hidden>Reintentar</button>
@@ -214,12 +216,16 @@
       <button type="button" id="pf-refresh">Actualizar</button>
       <button type="button" id="pf-previous" hidden>Descargar datos anteriores</button>
       <button type="button" id="pf-open-login">Entrar a mi cuenta</button>
-      <button type="button" id="pf-logout" hidden>Salir</button></div>`;
+      <button type="button" id="pf-set-password" hidden>Crear o cambiar contraseña</button>
+      <button type="button" id="pf-logout" hidden>Salir</button></div>
+      <p id="pf-password-feedback" role="status"></p>`;
     find('pf-account-content').append(bar);
     find('pf-role').textContent = projectInfo.rolesVersion ? ProjectFlowRoles.labels[projectInfo.role] : canEdit() ? 'Edición autorizada' : 'Solo lectura';
     find('pf-email').textContent = user?.email || 'Puedes consultar sin cuenta';
     find('pf-open-login').hidden = !!user;
     find('pf-logout').hidden = !user;
+    find('pf-set-password').hidden = !user;
+    if (user) accountPasswordDialog();
     if (user && !canEdit()) status(canSubmit() ? 'Puedes enviar solicitudes desde Mi proyecto.' : 'Esta cuenta tiene acceso de solo lectura.');
     find('pf-open-login').addEventListener('click', () => {
       document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
@@ -245,6 +251,42 @@
     });
     try { find('pf-previous').hidden = !canEdit() || !KEYS.some(key => localStorage.getItem(key)); } catch { /* optional migration */ }
     find('pf-previous').addEventListener('click', downloadPreviousData);
+  }
+  function accountPasswordDialog() {
+    const dialog = document.createElement('dialog'); dialog.id = 'pf-password-dialog';
+    dialog.setAttribute('aria-labelledby', 'pf-password-heading');
+    dialog.innerHTML = `<form id="pf-password-form"><h2 id="pf-password-heading">Crear o cambiar contraseña</h2>
+      <p>Define la contraseña con la que volverás a entrar a ProjectFlow usando tu correo. Es personal; el admin no necesita conocerla.</p>
+      <label>Nueva contraseña<input id="pf-new-password" type="password" autocomplete="new-password" minlength="10" required></label>
+      <label>Repite la contraseña<input id="pf-confirm-password" type="password" autocomplete="new-password" minlength="10" required></label>
+      <p>Usa al menos 10 caracteres.</p><p id="pf-password-error" role="status"></p>
+      <div class="pf-project-actions"><button type="button" id="pf-password-close">Cancelar</button><button type="submit">Guardar contraseña</button></div></form>`;
+    document.body.append(dialog);
+    let savingPassword = false;
+    find('pf-set-password').addEventListener('click', () => { find('pf-password-error').textContent = ''; dialog.showModal(); find('pf-new-password').focus(); });
+    find('pf-password-close').addEventListener('click', () => { if (!savingPassword) dialog.close(); });
+    dialog.addEventListener('cancel', event => { if (savingPassword) event.preventDefault(); });
+    dialog.addEventListener('close', () => { find('pf-password-form').reset(); find('pf-password-error').textContent = ''; });
+    find('pf-password-form').addEventListener('submit', async event => {
+      event.preventDefault(); if (savingPassword) return;
+      if (find('pf-new-password').value !== find('pf-confirm-password').value) {
+        find('pf-password-error').textContent = 'Las contraseñas no coinciden.'; find('pf-confirm-password').focus(); return;
+      }
+      savingPassword = true; pending++;
+      const controls = dialog.querySelectorAll('input, button'); controls.forEach(control => control.disabled = true);
+      find('pf-password-error').textContent = 'Guardando contraseña…';
+      try {
+        const { error } = await client.auth.updateUser({ password: find('pf-new-password').value });
+        if (error) {
+          find('pf-password-error').textContent = error.code === 'same_password' ? 'Esa ya es tu contraseña actual. Puedes seguir usándola.'
+            : error.code === 'reauthentication_needed' ? 'Vuelve a iniciar sesión para poder cambiar tu contraseña.'
+            : 'No se pudo guardar la contraseña. Revisa tu conexión y los requisitos de contraseña y vuelve a intentarlo.';
+          return;
+        }
+        dialog.close(); find('pf-password-feedback').textContent = 'Contraseña guardada. Puedes entrar con tu correo y esta contraseña.';
+      } catch { find('pf-password-error').textContent = 'No se pudo guardar la contraseña. Revisa tu conexión y vuelve a intentarlo.'; }
+      finally { savingPassword = false; pending--; controls.forEach(control => control.disabled = false); }
+    });
   }
   async function unlock(session) {
     const state = await requestState();
@@ -290,7 +332,7 @@
   find('pf-login').addEventListener('submit', async event => {
     event.preventDefault();
     if (!client) return;
-    find('pf-enter').disabled = true;
+    find('pf-enter').disabled = true; find('pf-login-link').disabled = true;
     message('Entrando…');
     try {
       const { data, error } = await client.auth.signInWithPassword({
@@ -299,7 +341,22 @@
       if (error) { message('No se pudo iniciar sesión. Revisa el correo y la contraseña de tu cuenta de ProjectFlow.', true); return; }
       await unlock(data.session);
     } catch (error) { message(errorText(error), true); }
-    finally { find('pf-enter').disabled = false; }
+    finally { find('pf-enter').disabled = false; find('pf-login-link').disabled = false; }
+  });
+  find('pf-login-link').addEventListener('click', async () => {
+    if (!client || find('pf-login-link').disabled || !find('pf-email-input').reportValidity()) return;
+    const email = find('pf-email-input').value.trim();
+    find('pf-enter').disabled = true; find('pf-login-link').disabled = true;
+    message('Solicitando el enlace de acceso…');
+    try {
+      // Solo autentica una cuenta existente; no crea cuentas ni concede roles.
+      const { error } = await client.auth.signInWithOtp({ email,
+        options: { shouldCreateUser: false, emailRedirectTo: projectUrl() } });
+      if (error) { message('No se pudo solicitar el enlace. Revisa el correo de tu invitación y espera un minuto antes de reintentar.', true); return; }
+      find('pf-password').value = '';
+      message('Revisa tu correo. Si la cuenta existe, recibirás un enlace para entrar. Después ve a Ajustes → Mi cuenta → Crear o cambiar contraseña.');
+    } catch { message('No se pudo solicitar el enlace. Comprueba tu conexión y vuelve a intentarlo.', true); }
+    finally { find('pf-enter').disabled = false; find('pf-login-link').disabled = false; }
   });
   find('pf-retry').addEventListener('click', restore);
   find('pf-cancel-login').addEventListener('click', () => {
