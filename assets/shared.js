@@ -257,9 +257,9 @@
     dialog.setAttribute('aria-labelledby', 'pf-password-heading');
     dialog.innerHTML = `<form id="pf-password-form"><h2 id="pf-password-heading">Crear o cambiar contraseña</h2>
       <p>Define la contraseña con la que volverás a entrar a ProjectFlow usando tu correo. Es personal; el admin no necesita conocerla.</p>
-      <label>Nueva contraseña<input id="pf-new-password" type="password" autocomplete="new-password" minlength="10" required></label>
-      <label>Repite la contraseña<input id="pf-confirm-password" type="password" autocomplete="new-password" minlength="10" required></label>
-      <p>Usa al menos 10 caracteres.</p><p id="pf-password-error" role="status"></p>
+      <label>Nueva contraseña<input id="pf-new-password" type="password" autocomplete="new-password" minlength="6" required></label>
+      <label>Repite la contraseña<input id="pf-confirm-password" type="password" autocomplete="new-password" minlength="6" required></label>
+      <p>Usa al menos 6 caracteres.</p><p id="pf-password-error" role="status"></p>
       <div class="pf-project-actions"><button type="button" id="pf-password-close">Cancelar</button><button type="submit">Guardar contraseña</button></div></form>`;
     document.body.append(dialog);
     let savingPassword = false;

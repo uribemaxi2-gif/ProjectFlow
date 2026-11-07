@@ -105,6 +105,12 @@ Si ya cerró sesión, en **Entrar a mi cuenta** puede escribir su correo y pulsa
 la contraseña en Mi cuenta. Este acceso solo sirve para cuentas existentes y no
 concede permisos de proyecto nuevos.
 
+La web permite contraseñas desde **6 caracteres**, el mínimo admitido por Supabase
+Auth. Para permitir esa longitud, en **Authentication → Sign In / Providers →
+Email**, configura **Minimum password length** en `6`. Si el servidor exige una
+longitud mayor, seguirá aplicándola aunque el formulario permita seis. No se puede
+usar un mínimo de cuatro con este sistema de autenticación.
+
 **Reenviar** crea un enlace nuevo e invalida la invitación anterior; espera al menos
 un minuto entre intentos al mismo correo. Una invitación pendiente dura siete días,
 pero el enlace de acceso del correo vence antes, según la caducidad configurada en

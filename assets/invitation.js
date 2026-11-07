@@ -96,7 +96,7 @@
           : await client.auth.signInWithPassword({ email: invitation.email, password: find('inv-current-password').value });
         if (error) {
           message(create
-            ? error.code === 'same_password' ? 'Esa ya es tu contraseña actual. Elige conservarla y confírmala para continuar.' : 'No se pudo guardar la contraseña. Usa al menos 10 caracteres y vuelve a intentarlo.'
+            ? error.code === 'same_password' ? 'Esa ya es tu contraseña actual. Elige conservarla y confírmala para continuar.' : 'No se pudo guardar la contraseña. Revisa tu conexión y los requisitos de contraseña y vuelve a intentarlo.'
             : 'La contraseña actual no es correcta. Revisa lo escrito o elige crear una nueva.', true);
           return;
         }

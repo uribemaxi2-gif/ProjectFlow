@@ -886,8 +886,8 @@ class SharedProjectTests(unittest.TestCase):
         expect(recipient.locator('#inv-message')).to_contain_text('no es correcta')
         self.assertNotIn('new@example.test', self.backend.roles)
         recipient.locator('[name="password-mode"][value="new"]').check()
-        recipient.locator('#inv-password').fill('my-chosen-password')
-        recipient.locator('#inv-confirm').fill('my-chosen-password')
+        recipient.locator('#inv-password').fill('Abc123')
+        recipient.locator('#inv-confirm').fill('Abc123')
         self.backend.fail_password_update = True
         recipient.locator('#inv-submit').click()
         expect(recipient.locator('#inv-message')).to_contain_text('No se pudo guardar')
@@ -898,7 +898,7 @@ class SharedProjectTests(unittest.TestCase):
         expect(recipient.locator('#pf-role')).to_have_text('Consultor / QA')
         self.assertEqual(self.backend.password_updates, ['new@example.test'])
         returning = self.page()
-        self.login(returning, 'new@example.test', password='my-chosen-password')
+        self.login(returning, 'new@example.test', password='Abc123')
         expect(returning.locator('#pf-role')).to_have_text('Consultor / QA')
 
     def test_existing_recipient_confirms_password_without_replacing_it(self):
@@ -926,12 +926,12 @@ class SharedProjectTests(unittest.TestCase):
         expect(page.locator('#pf-role')).to_have_text('Consultor / QA')
         self.set_font_level(page, 7)
         page.locator('#pf-set-password').click()
-        page.locator('#pf-new-password').fill('my-new-known-password')
+        page.locator('#pf-new-password').fill('Xyz789')
         page.locator('#pf-confirm-password').fill('not-the-same-password')
         page.locator('#pf-password-form button[type="submit"]').click()
         expect(page.locator('#pf-password-error')).to_contain_text('no coinciden')
         self.assertEqual(self.backend.password_updates, [])
-        page.locator('#pf-confirm-password').fill('my-new-known-password')
+        page.locator('#pf-confirm-password').fill('Xyz789')
         self.backend.fail_password_update = True
         page.locator('#pf-password-form button[type="submit"]').click()
         expect(page.locator('#pf-password-error')).to_contain_text('No se pudo guardar')
@@ -947,7 +947,7 @@ class SharedProjectTests(unittest.TestCase):
         page.locator('#pf-logout').click()
         expect(page.locator('#pf-role')).to_have_text('Usuario · Solo lectura')
         expect(page.locator('#pf-set-password')).to_be_hidden()
-        self.login(page, 'qa@example.test', password='my-new-known-password')
+        self.login(page, 'qa@example.test', password='Xyz789')
         expect(page.locator('#pf-role')).to_have_text('Consultor / QA')
 
     def test_existing_recipient_can_reenter_by_email_and_set_password_without_role_changes(self):
