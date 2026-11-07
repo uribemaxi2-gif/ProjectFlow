@@ -2,6 +2,7 @@
 
 La web permite invitar a participar en un proyecto concreto con un [rol asignado](ROLES.md). Quien recibe la invitación
 verifica su correo y acepta el acceso; si es nuevo, crea su propia contraseña.
+Admin global da acceso a todos los proyectos; los demás roles corresponden al proyecto invitado.
 No tienes que conocerla ni crear su cuenta manualmente. Los demás mantienen el
 acceso de lectura con el enlace del proyecto.
 
@@ -85,8 +86,8 @@ el permiso de edición se valida por separado al aceptar la invitación.
 ## 6. Invitar desde ProjectFlow
 
 1. Entra como admin o PM y selecciona el proyecto.
-2. Abre **⚙ Ajustes → Proyecto y enlace → Roles e invitaciones** (admin) o **Invitar personas** (PM).
-3. Escribe el correo. El admin elige el rol; el PM siempre invita como Consultor / QA. Pulsa **Enviar invitación**.
+2. Abre **⚙ Ajustes → Proyecto y enlace → Roles e invitaciones**.
+3. Escribe el correo. El Admin global elige cualquier rol; el PM solo Usuario, Consultor / QA o PM menor. Pulsa **Enviar invitación**.
 4. La persona abre el correo y crea su contraseña. Si ya conoce una contraseña
    de ProjectFlow, elige **Ya conozco mi contraseña y quiero conservarla** y la
    escribe para confirmarla. Luego pulsa **Aceptar invitación**. Puede hacerlo
@@ -94,7 +95,7 @@ el permiso de edición se valida por separado al aceptar la invitación.
 5. Comprueba que aparece en **Personas con acceso** de ese proyecto.
 
 El remitente conserva su sesión. El destinatario conserva su contraseña si ya tenía
-cuenta y recibe únicamente el rol indicado en la invitación para ese proyecto.
+cuenta y recibe el rol indicado: Admin global en toda la web; los demás, en ese proyecto.
 Después podrá entrar con su correo y contraseña desde los ajustes de la web.
 
 Si alguien ya aceptó una invitación y sigue dentro de la aplicación, puede usar

@@ -45,6 +45,8 @@ class Backend:
         self.fail_email = False
         self.invitations_available = True
         self.role_features = False
+        self.global_scope = False
+        self.global_admins = {"leader@example.test"}
         self.receipts = {}
         self.fail_after_request = False
         self.password_updates = []
@@ -135,7 +137,7 @@ class Backend:
             return
         data = self.data if selected == self.default_id else self.projects[selected]['data']
         roles = self.roles if selected == self.default_id else self.projects[selected]['roles']
-        role = self.normalized_role(roles.get(email, 'viewer'))
+        role = 'admin' if self.global_scope and email in self.global_admins else self.normalized_role(roles.get(email, 'viewer'))
         if name in ('projectflow_prepare_invitation', 'projectflow_prepare_invitation_role', 'projectflow_list_invitations', 'projectflow_cancel_invitation'):
             if role not in ('admin', 'pm'):
                 respond(403, {'code': '42501', 'message': 'Solo el propietario puede invitar.'})
@@ -143,7 +145,7 @@ class Backend:
             if name in ('projectflow_prepare_invitation', 'projectflow_prepare_invitation_role'):
                 target = body['p_email'].strip().lower()
                 invited_role = body.get('p_role', 'qa' if role == 'pm' else 'pm_junior')
-                if role == 'pm' and invited_role != 'qa':
+                if role == 'pm' and (invited_role not in ('viewer','qa','pm_junior') if self.global_scope else invited_role != 'qa'):
                     respond(403, {'code': '42501', 'message': 'El PM solo puede invitar como Consultor / QA.'})
                     return
                 if self.role_features and target in roles:
@@ -189,8 +191,8 @@ class Backend:
                 result.update({'project_id': selected, 'name': data.get(PROJECT, {}).get('project', {}).get('name', 'Mi proyecto'),
                                'can_create': email == 'leader@example.test', 'can_manage': roles.get(email) == 'leader'})
             if self.role_features:
-                current = self.normalized_role(roles.get(email, 'viewer'))
-                result.update({'project_role': current, 'roles_version': 1, 'can_manage': current == 'admin',
+                current = 'admin' if self.global_scope and email in self.global_admins else self.normalized_role(roles.get(email, 'viewer'))
+                result.update({'project_role': current, 'roles_version': 1, 'can_manage': current == 'admin' or (self.global_scope and current == 'pm'), 'scope_version': 2 if self.global_scope else 1,
                                'can_submit': current != 'viewer', 'can_invite': current in ('pm', 'admin'),
                                'can_create': current in ('pm_junior', 'pm', 'admin'),
                                'role': 'leader' if current == 'admin' else 'responsible' if current in ('pm_junior', 'pm') else 'viewer'})
@@ -200,7 +202,7 @@ class Backend:
             return
         if name == 'projectflow_list_projects' and email:
             projects = [(self.default_id, self.data, self.roles)] + [(id, p['data'], p['roles']) for id, p in self.projects.items()]
-            respond(200, [{'id': id, 'name': d.get(PROJECT, {}).get('project', {}).get('name', 'Mi proyecto')} for id, d, r in projects if email in r])
+            respond(200, [{'id': id, 'name': d.get(PROJECT, {}).get('project', {}).get('name', 'Mi proyecto')} for id, d, r in projects if email in r or (self.global_scope and email in self.global_admins)])
             return
         if (name == 'projectflow_create_project' and email == 'leader@example.test') or (name == 'projectflow_create_project_from' and role in ('pm_junior', 'pm', 'admin')):
             selected = str(uuid.uuid4())
@@ -213,7 +215,10 @@ class Backend:
             self.projects[selected] = {'data':data,'roles':roles}
             respond(200, state())
             return
-        if name in ('projectflow_list_editors','projectflow_set_editor','projectflow_set_member_role') and role == 'admin':
+        if name in ('projectflow_list_editors','projectflow_set_editor','projectflow_set_member_role') and (role == 'admin' or (self.global_scope and role == 'pm')):
+            if self.global_scope and role == 'pm' and name != 'projectflow_list_editors' and (body.get('p_role','viewer') not in ('viewer','qa','pm_junior') or self.normalized_role(roles.get(body['p_email'])) in ('pm','admin') or body['p_email'] in self.global_admins):
+                respond(403, {'code':'42501','message':'El PM solo administra roles inferiores.'})
+                return
             if name == 'projectflow_set_member_role' or (name == 'projectflow_set_editor' and not body['p_enabled']):
                 target = body['p_email']
                 if self.normalized_role(roles.get(target)) == 'admin' and body.get('p_role') != 'admin' and sum(self.normalized_role(r) == 'admin' for r in roles.values()) == 1:
@@ -223,13 +228,17 @@ class Backend:
                     if item['email'] == target and item['project_id'] == selected: item['status'] = 'revoked'
             if name == 'projectflow_set_member_role':
                 roles[body['p_email']] = body['p_role']
+                if self.global_scope:
+                    if body['p_role'] == 'admin': self.global_admins.add(body['p_email'])
+                    else: self.global_admins.discard(body['p_email'])
             if name == 'projectflow_set_editor':
                 if body['p_enabled']: roles[body['p_email']] = 'responsible'
                 else:
                     roles.pop(body['p_email'], None)
                     for item in self.invitations.values():
                         if item['email'] == body['p_email'] and item['project_id'] == selected: item['status'] = 'revoked'
-            respond(200, [{'email': e,'owner': self.normalized_role(r) == 'admin','active':True,'role':self.normalized_role(r),'self':e == email} for e,r in roles.items()])
+            listed_roles = roles | ({e:'admin' for e in self.global_admins} if self.global_scope else {})
+            respond(200, [{'email': e,'owner': self.normalized_role(r) == 'admin','active':True,'role':self.normalized_role(r),'self':e == email} for e,r in listed_roles.items()])
             return
         if name == 'projectflow_submit_request' and role in ('qa', 'pm_junior', 'pm', 'admin'):
             payload = body['p_request']
@@ -336,8 +345,9 @@ class SharedProjectTests(unittest.TestCase):
         expect(page.locator('#pf-gate')).to_be_hidden()
         selected = parse_qs(urlparse(page.url).query).get('project', [self.backend.default_id])[0]
         roles = self.backend.roles if selected == self.backend.default_id else self.backend.projects[selected]['roles']
-        labels = {'viewer':'Usuario · Solo lectura','qa':'Consultor / QA','pm_junior':'PM menor','pm':'PM','admin':'Admin'}
+        labels = {'viewer':'Usuario · Solo lectura','qa':'Consultor / QA','pm_junior':'PM menor','pm':'PM','admin':'Admin global'}
         expected = labels[self.backend.normalized_role(roles.get(email, 'viewer'))] if self.backend.role_features else 'Edición autorizada' if email in roles else 'Solo lectura'
+        if self.backend.global_scope and email in self.backend.global_admins: expected = 'Admin global'
         expect(page.locator('#pf-role')).to_have_text(expected)
         self.close_settings(page)
 
@@ -1041,6 +1051,45 @@ class SharedProjectTests(unittest.TestCase):
             email = role + '@example.test'
             self.backend.roles[email] = role
             self.backend.accounts[email] = {'has_password': True}
+
+    def test_pm_can_manage_only_lower_roles_in_selected_project(self):
+        self.enable_roles(); self.backend.global_scope = True
+        page = self.page(mobile=True); self.login(page, 'pm@example.test')
+        self.settings_click(page, '#pf-project-access')
+        expect(page.locator('#pf-members-section')).to_be_visible()
+        self.assertEqual(page.locator('#pf-invite-role option').evaluate_all('(items)=>items.map(i=>i.value)'), ['viewer','qa','pm_junior'])
+        for email in ('pm@example.test','leader@example.test'):
+            row = page.locator('#pf-editor-list li').filter(has_text=email)
+            expect(row.locator('select')).to_have_count(0)
+            expect(row.locator('button')).to_have_count(0)
+        row = page.locator('#pf-editor-list li').filter(has_text='qa@example.test')
+        row.locator('select').select_option('pm_junior')
+        row.get_by_role('button', name='Guardar rol').click()
+        expect(page.locator('#pf-access-message')).to_contain_text('Rol actualizado')
+        self.assertEqual(self.backend.roles['qa@example.test'], 'pm_junior')
+        page.locator('#pf-invite-role').select_option('pm_junior')
+        page.locator('#pf-add-editor [name="email"]').fill('outsider@example.test')
+        page.locator('#pf-add-editor button[type="submit"]').click()
+        expect(page.locator('#pf-access-message')).to_contain_text('Invitación enviada')
+        self.assertEqual(next(iter(self.backend.invitations.values()))['role'], 'pm_junior')
+
+    def test_global_admin_sees_all_projects_and_can_promote_another_admin(self):
+        self.enable_roles(); self.backend.global_scope = True
+        other = str(uuid.uuid4())
+        self.backend.projects[other] = {'data': {PROJECT:{'project':{'name':'Proyecto ajeno'}}}, 'roles':{'pm@example.test':'pm'}}
+        page = self.page(); self.login(page)
+        self.open_settings(page)
+        expect(page.locator('#pf-project-select option[value="'+other+'"]')).to_have_count(1)
+        page.locator('#pf-project-select').select_option(other)
+        expect(page.locator('#pf-role')).to_have_text('Admin global')
+        self.settings_click(page, '#pf-project-access')
+        row = page.locator('#pf-editor-list li').filter(has_text='pm@example.test')
+        row.locator('select').select_option('admin')
+        row.get_by_role('button', name='Guardar rol').click()
+        expect(page.locator('#pf-access-message')).to_contain_text('Admin global')
+        self.assertIn('pm@example.test', self.backend.global_admins)
+        promoted = self.page(); self.login(promoted,'pm@example.test')
+        expect(promoted.locator('#pf-role')).to_have_text('Admin global')
 
     def test_qa_sends_request_without_editing_other_records_and_retry_is_not_duplicated(self):
         self.enable_roles()

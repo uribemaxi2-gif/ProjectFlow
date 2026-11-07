@@ -2,6 +2,9 @@
   'use strict';
   await ProjectFlow.ready();
   const info = ProjectFlow.project();
+  const lowerRoles = ['viewer', 'qa', 'pm_junior'];
+  const allowedRoles = Object.entries(ProjectFlowRoles.labels).filter(([role]) => info.role === 'admin' || lowerRoles.includes(role));
+  const canManagePerson = person => info.canManage && (info.scopeVersion < 2 || info.role === 'admin' || lowerRoles.includes(person.role));
   const bar = document.createElement('section');
   bar.id = 'pf-projects'; bar.setAttribute('aria-label', 'Proyecto seleccionado');
   bar.innerHTML = `<div><label for="pf-project-select">Proyecto</label> <select id="pf-project-select" hidden></select><strong id="pf-project-name"></strong></div>
@@ -14,7 +17,7 @@
   find('pf-project-access').hidden = !info.canInvite;
   if (info.rolesVersion) find('pf-project-access').textContent = info.canManage ? 'Roles e invitaciones' : 'Invitar personas';
   if (!info.multi && ProjectFlow.canEdit()) message('La creación de proyectos estará disponible cuando completes la actualización de Supabase.');
-  else if (!info.rolesVersion && info.canManage) message('Para activar los cinco roles, ejecuta la actualización de Supabase de la guía de roles.');
+  else if (info.scopeVersion < 2 && info.canInvite) message('Para activar Admin global y los nuevos permisos de PM, ejecuta setup.sql en Supabase.');
   if (info.signedIn && info.multi) {
     try {
       const projects = await ProjectFlow.projectRpc('projectflow_list_projects');
@@ -48,7 +51,7 @@
     <div class="pf-project-grid"><label>Inicio<input name="start" type="date"></label><label>Entrega del proyecto<input name="due" type="date"></label></div>
     <label>Semanas iniciales<input name="weeks" type="number" min="1" max="104" value="4" required></label>
     <p>Podrás añadir o quitar semanas y tareas, y ajustar sus fechas por separado.</p>
-    ${info.rolesVersion && !info.canManage ? '<p>Conservarás tu rol. Los admins del proyecto actual administrarán también el nuevo proyecto.</p>' : ''}
+    ${info.rolesVersion && info.role !== 'admin' ? '<p>Conservarás tu rol. Los admins globales también podrán administrar el nuevo proyecto.</p>' : ''}
     <p id="pf-create-error" role="status"></p><div class="pf-project-actions"><button type="button" data-close-project>Cancelar</button><button type="submit">Crear proyecto</button></div></form>`;
   document.body.append(dialog);
   find('pf-new-project').addEventListener('click', () => dialog.showModal());
@@ -74,7 +77,7 @@
     finally { creating = false; form.querySelectorAll('button').forEach(button => button.disabled = false); }
   });
   const access = document.createElement('dialog'); access.id = 'pf-access-dialog';
-  access.innerHTML = `<div class="pf-access-header"><h2 id="pf-access-heading" tabindex="-1">${info.rolesVersion ? info.canManage ? 'Roles e invitaciones' : 'Invitar personas' : 'Quién puede editar este proyecto'}</h2><button type="button" data-close-access aria-label="Cerrar permisos">×</button></div><p>El enlace permite leer sin cuenta. Las invitaciones y los roles corresponden únicamente a este proyecto.</p>
+  access.innerHTML = `<div class="pf-access-header"><h2 id="pf-access-heading" tabindex="-1">${info.rolesVersion ? info.canManage ? 'Roles e invitaciones' : 'Invitar personas' : 'Quién puede editar este proyecto'}</h2><button type="button" data-close-access aria-label="Cerrar permisos">×</button></div><p>El enlace permite leer sin cuenta. Los roles de proyecto se aplican aquí. Admin global da acceso a todos los proyectos de la web.</p>
     <section id="pf-members-section" ${info.canManage ? '' : 'hidden'}><h3>Personas con acceso</h3><ul id="pf-editor-list"></ul></section>
     <form id="pf-add-editor"><label>Correo de la persona<input name="email" type="email" required maxlength="254" placeholder="persona@ejemplo.com"></label>
     <label ${info.rolesVersion && info.canManage ? '' : 'hidden'}>Rol al aceptar<select name="role" id="pf-invite-role"></select></label>
@@ -83,7 +86,7 @@
     <h3>Invitaciones pendientes</h3><ul id="pf-invitation-list"></ul>
     <p id="pf-access-message" role="status"></p><button type="button" id="pf-access-close">Cerrar</button>`;
   document.body.append(access);
-  for (const [value, label] of Object.entries(ProjectFlowRoles.labels)) find('pf-invite-role').add(new Option(label, value));
+  for (const [value, label] of allowedRoles) find('pf-invite-role').add(new Option(label, value));
   find('pf-invite-role').value = 'qa';
   const invitationHelp = () => {
     find('pf-invite-help').textContent = !info.rolesVersion ? '' : info.canManage
@@ -102,17 +105,17 @@
     find('pf-editor-list').replaceChildren(...editors.filter(person => person.active).map(person => {
       const li = document.createElement('li'), label = document.createElement('span');
       label.textContent = person.email + (info.rolesVersion ? ' · ' + ProjectFlowRoles.labels[person.role] : person.owner ? ' · Propietario' : ' · Puede editar'); li.append(label);
-      if (info.rolesVersion && info.canManage) {
+      if (info.rolesVersion && canManagePerson(person)) {
         const controls = document.createElement('div'), roleLabel = document.createElement('label'), select = document.createElement('select');
         controls.className = 'pf-member-controls'; roleLabel.textContent = 'Rol'; select.setAttribute('aria-label', 'Rol de ' + person.email);
-        for (const [value, name] of Object.entries(ProjectFlowRoles.labels)) select.add(new Option(name, value));
+        for (const [value, name] of allowedRoles) select.add(new Option(name, value));
         select.value = person.role; roleLabel.append(select);
         const save = document.createElement('button'); save.type = 'button'; save.textContent = 'Guardar rol';
         save.addEventListener('click', () => { if (select.value !== person.role) changeRole(person.email, select.value); });
         controls.append(roleLabel, save); li.append(controls);
       }
-      if (info.canManage && (!person.owner || info.rolesVersion)) {
-        const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Quitar permiso';
+      if (canManagePerson(person) && (!person.owner || info.rolesVersion)) {
+        const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = person.role === 'admin' && info.scopeVersion >= 2 ? 'Retirar Admin global' : 'Quitar permiso';
         remove.addEventListener('click', () => changeAccess(person.email)); li.append(remove);
       }
       return li;
@@ -150,7 +153,7 @@
       renderEditors(await ProjectFlow.projectRpc('projectflow_set_editor', { p_project_id: info.id, p_email: email, p_enabled: false }));
       if (info.rolesVersion && !await ProjectFlow.checkPermissions()) return;
       if (invitationsReady) await refreshAccess();
-      find('pf-access-message').textContent = 'Permiso retirado de este proyecto. La lectura pública sigue disponible.';
+      find('pf-access-message').textContent = 'Permiso retirado. Si era Admin global, perdió ese acceso a toda la web. La lectura pública sigue disponible.';
     } catch (error) { find('pf-access-message').textContent = error.message; }
     finally { accessBusy(false); }
   }
@@ -160,7 +163,7 @@
     try {
       await ProjectFlow.projectRpc('projectflow_set_member_role', { p_project_id: info.id, p_email: email, p_role: role });
       if (!await ProjectFlow.checkPermissions()) return;
-      await refreshAccess(); find('pf-access-message').textContent = 'Rol actualizado: ' + ProjectFlowRoles.labels[role] + '. Solo afecta a este proyecto.';
+      await refreshAccess(); find('pf-access-message').textContent = 'Rol actualizado: ' + ProjectFlowRoles.labels[role] + (info.scopeVersion >= 2 ? '. Admin tiene alcance global; los demás roles corresponden al proyecto.' : '. Solo afecta a este proyecto.');
     } catch (error) { find('pf-access-message').textContent = error.message; }
     finally { accessBusy(false); }
   }
@@ -171,7 +174,7 @@
       const result = await ProjectFlow.inviteEditor(email, role);
       await refreshAccess();
       find('pf-access-message').textContent = result.sent
-        ? info.rolesVersion ? 'Invitación enviada. Al aceptar tendrá el rol ' + ProjectFlowRoles.labels[role] + ' solo en este proyecto.' : 'Invitación enviada. La persona debe aceptarla para editar solo este proyecto.'
+        ? info.rolesVersion ? 'Invitación enviada. Al aceptar tendrá el rol ' + ProjectFlowRoles.labels[role] + (role === 'admin' && info.scopeVersion >= 2 ? ' en toda la web.' : ' solo en este proyecto.') : 'Invitación enviada. La persona debe aceptarla para editar solo este proyecto.'
         : result.errorCode === 'over_email_send_rate_limit'
           ? 'La invitación quedó pendiente, pero no se envió el correo: alcanzaste el límite de envíos. Espera antes de reenviar.'
           : 'La invitación quedó pendiente, pero no se pudo enviar el correo. Revisa la configuración de correo en Supabase y luego pulsa Reenviar.';

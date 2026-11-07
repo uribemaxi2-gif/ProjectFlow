@@ -77,6 +77,38 @@ insert into public.projectflow_project_members(project_id, user_id, can_manage, 
   from public.projectflow_state s cross join public.projectflow_members m where s.id = 1
   on conflict do nothing;
 
+-- Admin es global. Migrar los antiguos admins una sola vez; las filas inactivas
+-- se conservan para que repetir setup nunca restaure una administración retirada.
+-- Una invitación antigua de admin local no debe convertirse en un alta global.
+do $$ begin
+  if to_regclass('public.projectflow_global_admins') is null then
+    update public.projectflow_invitations set role = 'pm' where role = 'admin' and status = 'pending';
+  end if;
+end $$;
+create table if not exists public.projectflow_global_admins (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  active boolean not null default true
+);
+alter table public.projectflow_global_admins enable row level security;
+revoke all on public.projectflow_global_admins from public, anon, authenticated;
+insert into public.projectflow_global_admins(user_id)
+  select distinct user_id from public.projectflow_project_members where role = 'admin' and active
+  on conflict do nothing;
+update public.projectflow_project_members set role = 'pm', can_manage = false where role = 'admin';
+
+create or replace function public.projectflow_is_admin(p_user_id uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists(select 1 from public.projectflow_global_admins where user_id = p_user_id and active);
+$$;
+revoke all on function public.projectflow_is_admin(uuid) from public, anon, authenticated;
+
+create or replace function public.projectflow_user_role(p_project_id uuid, p_user_id uuid)
+returns text language sql stable security definer set search_path = '' as $$
+  select case when public.projectflow_is_admin(p_user_id) then 'admin' else coalesce(
+    (select role from public.projectflow_project_members where project_id = p_project_id and user_id = p_user_id and active), 'viewer') end;
+$$;
+revoke all on function public.projectflow_user_role(uuid,uuid) from public, anon, authenticated;
+
 alter table public.projectflow_members enable row level security;
 alter table public.projectflow_state enable row level security;
 alter table public.projectflow_project_members enable row level security;
@@ -87,8 +119,7 @@ drop policy if exists projectflow_authorized_read on public.projectflow_state;
 
 create or replace function public.projectflow_role(p_project_id uuid)
 returns text language sql stable security definer set search_path = '' as $$
-  select coalesce((select role from public.projectflow_project_members
-    where project_id = p_project_id and user_id = auth.uid() and active), 'viewer');
+  select public.projectflow_user_role(p_project_id, auth.uid());
 $$;
 revoke all on function public.projectflow_role(uuid) from public, anon, authenticated;
 
@@ -100,28 +131,26 @@ revoke all on function public.projectflow_can_edit_project(uuid) from public, an
 
 create or replace function public.projectflow_can_create()
 returns boolean language sql stable security definer set search_path = '' as $$
-  select exists (select 1 from public.projectflow_project_members
-    where user_id = auth.uid() and active and role = 'admin');
+  select public.projectflow_is_admin(auth.uid());
 $$;
 revoke all on function public.projectflow_can_create() from public, anon, authenticated;
 
 create or replace function public.projectflow_get_project(p_project_id uuid default null)
 returns jsonb language plpgsql stable security definer set search_path = '' as $$
-declare selected public.projectflow_state; member public.projectflow_project_members;
+declare selected public.projectflow_state; effective_role text;
 begin
   select * into selected from public.projectflow_state
     where (p_project_id is null and id = 1) or project_id = p_project_id;
   if not found then raise exception 'El proyecto no existe.' using errcode = 'P0002'; end if;
-  select * into member from public.projectflow_project_members
-    where project_id = selected.project_id and user_id = auth.uid() and active;
+  effective_role := public.projectflow_role(selected.project_id);
   return jsonb_build_object('data', selected.data, 'project_id', selected.project_id,
     'name', coalesce(nullif(selected.data #>> '{projecthub.cliente.v1,project,name}', ''), 'Mi proyecto'),
     -- role conserva la respuesta antigua para pestañas que aún tengan la web anterior.
-    'role', case when member.role = 'admin' then 'leader' when member.role in ('pm_junior', 'pm') then 'responsible' else 'viewer' end,
-    'project_role', coalesce(member.role, 'viewer'), 'roles_version', 1,
-    'can_manage', coalesce(member.role = 'admin', false),
-    'can_invite', coalesce(member.role in ('pm', 'admin'), false),
-    'can_submit', coalesce(member.role in ('qa', 'pm_junior', 'pm', 'admin'), false),
+    'role', case when effective_role = 'admin' then 'leader' when effective_role in ('pm_junior', 'pm') then 'responsible' else 'viewer' end,
+    'project_role', coalesce(effective_role, 'viewer'), 'roles_version', 1, 'scope_version', 2,
+    'can_manage', effective_role in ('pm', 'admin'),
+    'can_invite', coalesce(effective_role in ('pm', 'admin'), false),
+    'can_submit', coalesce(effective_role in ('qa', 'pm_junior', 'pm', 'admin'), false),
     'can_create', public.projectflow_can_edit_project(selected.project_id),
     'updated_at', selected.updated_at);
 end;
@@ -133,8 +162,8 @@ create or replace function public.projectflow_list_projects()
 returns jsonb language sql stable security definer set search_path = '' as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', s.project_id,
     'name', coalesce(nullif(s.data #>> '{projecthub.cliente.v1,project,name}', ''), 'Mi proyecto')) order by s.id), '[]'::jsonb)
-  from public.projectflow_state s join public.projectflow_project_members m using (project_id)
-  where m.user_id = auth.uid() and m.active;
+  from public.projectflow_state s where public.projectflow_is_admin(auth.uid()) or exists (
+    select 1 from public.projectflow_project_members m where m.project_id = s.project_id and m.user_id = auth.uid() and m.active);
 $$;
 revoke all on function public.projectflow_list_projects() from public, anon;
 grant execute on function public.projectflow_list_projects() to authenticated;
@@ -239,25 +268,26 @@ begin
         'project', jsonb_build_object('name', trim(p_name), 'startDate', coalesce(p_start::text, ''), 'targetDate', coalesce(p_due::text, '')),
         'requests', '[]'::jsonb, 'reviews', '[]'::jsonb, 'agreements', '[]'::jsonb, 'activity', '[]'::jsonb)), auth.uid())
     returning project_id into new_id;
-  insert into public.projectflow_project_members(project_id, user_id, can_manage, role) values (new_id, auth.uid(), true, 'admin');
+  insert into public.projectflow_project_members(project_id, user_id, can_manage, role) values (new_id, auth.uid(), false, 'pm');
   return public.projectflow_get_project(new_id);
 end;
 $$;
 revoke all on function public.projectflow_create_project(text,date,date,integer) from public, anon;
 grant execute on function public.projectflow_create_project(text,date,date,integer) to authenticated;
 
--- Un PM conserva su nivel al crear un proyecto. Los admins del proyecto de origen
--- administran el nuevo; crear proyectos no permite ascenderse de rol.
+-- Un PM conserva su nivel al crear un proyecto. Los admins globales tienen acceso
+-- automáticamente; crear proyectos no permite ascenderse de rol.
 create or replace function public.projectflow_create_project_from(p_source_project_id uuid, p_name text, p_start date, p_due date, p_weeks integer)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare creator_role text; new_id uuid; plan jsonb;
 begin
+  perform pg_advisory_xact_lock(724011);
   perform 1 from public.projectflow_state where project_id = p_source_project_id for update;
   creator_role := public.projectflow_role(p_source_project_id);
   if creator_role not in ('pm_junior', 'pm', 'admin') then
     raise exception 'Solo PM menor, PM y admin pueden crear proyectos.' using errcode = '42501'; end if;
   if creator_role = 'admin' then return public.projectflow_create_project(p_name, p_start, p_due, p_weeks); end if;
-  if not exists (select 1 from public.projectflow_project_members where project_id = p_source_project_id and active and role = 'admin') then
+  if not exists (select 1 from public.projectflow_global_admins where active) then
     raise exception 'El proyecto de origen necesita un admin activo.' using errcode = '22023'; end if;
   if p_name is null or length(trim(p_name)) not between 1 and 120 or p_weeks is null or p_weeks not between 1 and 104
     or (p_start is not null and p_due is not null and p_due < p_start) then
@@ -273,9 +303,6 @@ begin
         'project', jsonb_build_object('name', trim(p_name), 'startDate', coalesce(p_start::text, ''), 'targetDate', coalesce(p_due::text, '')),
         'requests', '[]'::jsonb, 'reviews', '[]'::jsonb, 'agreements', '[]'::jsonb, 'activity', '[]'::jsonb)), auth.uid())
     returning project_id into new_id;
-  insert into public.projectflow_project_members(project_id,user_id,role,can_manage)
-    select new_id,user_id,'admin',true from public.projectflow_project_members
-      where project_id = p_source_project_id and active and role = 'admin';
   insert into public.projectflow_project_members(project_id,user_id,role,can_manage) values (new_id,auth.uid(),creator_role,false);
   return public.projectflow_get_project(new_id);
 end;
@@ -347,13 +374,15 @@ grant execute on function public.projectflow_submit_request(uuid,jsonb) to authe
 create or replace function public.projectflow_list_editors(p_project_id uuid)
 returns jsonb language plpgsql stable security definer set search_path = '' as $$
 begin
-  if not exists (select 1 from public.projectflow_project_members
-    where project_id = p_project_id and user_id = auth.uid() and active and can_manage) then
-    raise exception 'Solo el propietario administra los permisos.' using errcode = '42501';
+  if public.projectflow_role(p_project_id) not in ('pm', 'admin') then
+    raise exception 'Solo el Admin global o el PM del proyecto pueden administrar permisos.' using errcode = '42501';
   end if;
-  return (select coalesce(jsonb_agg(jsonb_build_object('email', u.email, 'owner', m.can_manage, 'active', m.active,
-    'role', m.role, 'self', m.user_id = auth.uid()) order by u.email), '[]'::jsonb)
-    from public.projectflow_project_members m join auth.users u on u.id = m.user_id where m.project_id = p_project_id);
+  return (select coalesce(jsonb_agg(jsonb_build_object('email', u.email,
+    'owner', public.projectflow_is_admin(u.id), 'active', m.active or public.projectflow_is_admin(u.id),
+    'role', case when public.projectflow_is_admin(u.id) then 'admin' else m.role end,
+    'self', u.id = auth.uid()) order by u.email), '[]'::jsonb)
+    from auth.users u left join public.projectflow_project_members m on m.user_id = u.id and m.project_id = p_project_id
+    where m.user_id is not null or public.projectflow_is_admin(u.id));
 end;
 $$;
 revoke all on function public.projectflow_list_editors(uuid) from public, anon;
@@ -364,24 +393,35 @@ returns jsonb language plpgsql security definer set search_path = '' as $$
 declare target_user uuid; previous public.projectflow_project_members;
 begin
   -- Serializar todos los cambios de permisos por proyecto, antes de tocar miembros o invitaciones.
+  perform pg_advisory_xact_lock(724011);
   perform 1 from public.projectflow_state where project_id = p_project_id for update;
-  if public.projectflow_role(p_project_id) <> 'admin' then
-    raise exception 'Solo el admin puede cambiar roles o retirar permisos.' using errcode = '42501'; end if;
+  if public.projectflow_role(p_project_id) not in ('pm', 'admin') then
+    raise exception 'Solo el Admin global o el PM del proyecto pueden administrar permisos.' using errcode = '42501'; end if;
   if p_role is null or p_role not in ('viewer', 'qa', 'pm_junior', 'pm', 'admin') or p_active is null then
     raise exception 'Selecciona un rol válido.' using errcode = '22023'; end if;
   select id into target_user from auth.users where lower(email) = lower(trim(p_email));
   if target_user is null then raise exception 'Envía una invitación para que esa persona cree su cuenta.' using errcode = '22023'; end if;
   select * into previous from public.projectflow_project_members where project_id = p_project_id and user_id = target_user;
-  if previous.active and previous.role = 'admin' and (not p_active or p_role <> 'admin')
-    and not exists (select 1 from public.projectflow_project_members where project_id = p_project_id
-      and user_id <> target_user and active and role = 'admin') then
-    raise exception 'El proyecto debe conservar al menos un admin. Asigna otro antes de retirar este rol.' using errcode = '22023'; end if;
+  if public.projectflow_role(p_project_id) = 'pm' and
+    (p_role not in ('viewer','qa','pm_junior') or previous.role in ('pm','admin')
+      or public.projectflow_is_admin(target_user) or target_user = auth.uid()) then
+    raise exception 'El PM solo administra roles inferiores al suyo dentro de su proyecto.' using errcode = '42501'; end if;
+  if public.projectflow_is_admin(target_user) and (not p_active or p_role <> 'admin') then
+    if not exists(select 1 from public.projectflow_global_admins where active and user_id <> target_user) then
+      raise exception 'La web debe conservar al menos un admin global.' using errcode = '22023'; end if;
+    update public.projectflow_global_admins set active = false where user_id = target_user;
+    update public.projectflow_invitations set status = 'revoked' where email = lower(trim(p_email)) or accepted_by = target_user;
+  end if;
+  if p_role = 'admin' and p_active then
+    insert into public.projectflow_global_admins(user_id) values (target_user)
+      on conflict(user_id) do update set active = true;
+  end if;
   update public.projectflow_invitations set status = 'revoked'
     where project_id = p_project_id and (email = lower(trim(p_email)) or accepted_by = target_user);
   insert into public.projectflow_project_members(project_id,user_id,active,role,can_manage)
-    values (p_project_id,target_user,p_active,p_role,p_role = 'admin')
+    values (p_project_id,target_user,p_active,case when p_role = 'admin' then 'pm' else p_role end,false)
     on conflict (project_id,user_id) do update set active = excluded.active, role = excluded.role, can_manage = excluded.can_manage;
-  return case when public.projectflow_role(p_project_id) = 'admin' then public.projectflow_list_editors(p_project_id) else '[]'::jsonb end;
+  return case when public.projectflow_role(p_project_id) in ('pm','admin') then public.projectflow_list_editors(p_project_id) else '[]'::jsonb end;
 end;
 $$;
 revoke all on function public.projectflow_update_member(uuid,text,text,boolean) from public, anon, authenticated;
@@ -389,11 +429,12 @@ revoke all on function public.projectflow_update_member(uuid,text,text,boolean) 
 create or replace function public.projectflow_set_member_role(p_project_id uuid, p_email text, p_role text)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 begin
+  perform pg_advisory_xact_lock(724011);
   perform 1 from public.projectflow_state where project_id = p_project_id for update;
-  if public.projectflow_role(p_project_id) <> 'admin' then
-    raise exception 'Solo el admin puede cambiar roles.' using errcode = '42501'; end if;
-  if not exists (select 1 from public.projectflow_project_members m join auth.users u on u.id = m.user_id
-    where m.project_id = p_project_id and lower(u.email) = lower(trim(p_email)) and m.active) then
+  if public.projectflow_role(p_project_id) not in ('pm', 'admin') then
+    raise exception 'Solo el Admin global o el PM del proyecto pueden administrar roles.' using errcode = '42501'; end if;
+  if not exists (select 1 from auth.users u left join public.projectflow_project_members m on u.id = m.user_id
+    where lower(u.email) = lower(trim(p_email)) and ((m.project_id = p_project_id and m.active) or public.projectflow_is_admin(u.id))) then
     raise exception 'La persona debe aceptar su invitación antes de asignarle otro rol.' using errcode = '22023'; end if;
   return public.projectflow_update_member(p_project_id, p_email, p_role, true);
 end;
@@ -401,15 +442,16 @@ $$;
 revoke all on function public.projectflow_set_member_role(uuid,text,text) from public, anon;
 grant execute on function public.projectflow_set_member_role(uuid,text,text) to authenticated;
 
--- Compatibilidad con la web anterior, siempre restringida al admin.
+-- Compatibilidad con la web anterior; conserva las comprobaciones de jerarquía.
 create or replace function public.projectflow_set_editor(p_project_id uuid, p_email text, p_enabled boolean)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare previous_role text;
 begin
+  perform pg_advisory_xact_lock(724011);
   perform 1 from public.projectflow_state where project_id = p_project_id for update;
   select m.role into previous_role from public.projectflow_project_members m join auth.users u on u.id = m.user_id
     where m.project_id = p_project_id and lower(u.email) = lower(trim(p_email));
-  return public.projectflow_update_member(p_project_id, p_email, coalesce(previous_role, 'pm_junior'), p_enabled);
+  return public.projectflow_update_member(p_project_id, p_email, case when exists(select 1 from auth.users u where lower(u.email) = lower(trim(p_email)) and public.projectflow_is_admin(u.id)) then 'admin' else coalesce(previous_role, 'pm_junior') end, p_enabled);
 end;
 $$;
 revoke all on function public.projectflow_set_editor(uuid,text,boolean) from public, anon;
@@ -419,21 +461,24 @@ create or replace function public.projectflow_prepare_invitation_role(p_project_
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare recipient text := lower(trim(p_email)); invitation public.projectflow_invitations; sender_role text;
 begin
+  perform pg_advisory_xact_lock(724011);
   perform 1 from public.projectflow_state where project_id = p_project_id for update;
   sender_role := public.projectflow_role(p_project_id);
   if sender_role not in ('pm', 'admin') then raise exception 'Solo PM y admin pueden invitar.' using errcode = '42501'; end if;
   if p_role is null or p_role not in ('viewer', 'qa', 'pm_junior', 'pm', 'admin') then
     raise exception 'Selecciona un rol válido.' using errcode = '22023'; end if;
-  if sender_role = 'pm' and p_role <> 'qa' then
-    raise exception 'El PM solo puede invitar como Consultor / QA. El admin asigna otros roles.' using errcode = '42501'; end if;
+  if sender_role = 'pm' and p_role not in ('viewer','qa','pm_junior') then
+    raise exception 'El PM solo puede invitar como Usuario, Consultor / QA o PM menor.' using errcode = '42501'; end if;
   if recipient is null or length(recipient) > 254 or recipient !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then
     raise exception 'Escribe un correo válido.' using errcode = '22023'; end if;
   if exists (select 1 from public.projectflow_project_members m join auth.users u on u.id = m.user_id
-    where m.project_id = p_project_id and lower(u.email) = recipient and (m.active or sender_role = 'pm')) then
+    where m.project_id = p_project_id and lower(u.email) = recipient and (m.active or (sender_role = 'pm' and m.role in ('pm','admin')))) then
     raise exception 'Esa cuenta ya tiene un rol o un permiso retirado. Solo el admin administra su acceso.' using errcode = '22023'; end if;
+  if exists(select 1 from auth.users u where lower(u.email) = recipient and public.projectflow_is_admin(u.id)) then
+    raise exception 'Esta cuenta ya es Admin global.' using errcode = '22023'; end if;
   select * into invitation from public.projectflow_invitations where project_id = p_project_id and email = recipient for update;
-  if found and sender_role = 'pm' and (invitation.invited_by <> auth.uid() or invitation.role <> 'qa' or invitation.status <> 'pending') then
-    raise exception 'El PM solo puede reenviar sus propias invitaciones pendientes de Consultor / QA.' using errcode = '42501'; end if;
+  if found and sender_role = 'pm' and invitation.role in ('pm','admin') then
+    raise exception 'El PM no puede modificar invitaciones de PM o Admin.' using errcode = '42501'; end if;
   if found and invitation.prepared_at > now() - interval '1 minute' then
     raise exception 'Espera un minuto antes de volver a enviar a ese correo.' using errcode = '22023'; end if;
   if (select count(*) from public.projectflow_invitations where invited_by = auth.uid()
@@ -466,7 +511,7 @@ begin
   return (select coalesce(jsonb_agg(jsonb_build_object('id', id, 'email', email,
     'expires_at', expires_at, 'expired', expires_at <= now(), 'role', role) order by prepared_at desc), '[]'::jsonb)
     from public.projectflow_invitations where project_id = p_project_id and status = 'pending'
-      and (public.projectflow_role(p_project_id) = 'admin' or (invited_by = auth.uid() and role = 'qa')));
+      and (public.projectflow_role(p_project_id) = 'admin' or role in ('viewer','qa','pm_junior')));
 end;
 $$;
 revoke all on function public.projectflow_list_invitations(uuid) from public, anon;
@@ -475,12 +520,13 @@ grant execute on function public.projectflow_list_invitations(uuid) to authentic
 create or replace function public.projectflow_cancel_invitation(p_project_id uuid, p_invitation_id uuid)
 returns void language plpgsql security definer set search_path = '' as $$
 begin
+  perform pg_advisory_xact_lock(724011);
   perform 1 from public.projectflow_state where project_id = p_project_id for update;
   if public.projectflow_role(p_project_id) not in ('pm', 'admin') then
     raise exception 'Solo PM y admin pueden cancelar invitaciones.' using errcode = '42501'; end if;
   update public.projectflow_invitations set status = 'revoked'
     where project_id = p_project_id and id = p_invitation_id and status = 'pending'
-      and (public.projectflow_role(p_project_id) = 'admin' or (invited_by = auth.uid() and role = 'qa'));
+      and (public.projectflow_role(p_project_id) = 'admin' or role in ('viewer','qa','pm_junior'));
   if not found then raise exception 'La invitación cambió o no puedes cancelarla. Actualiza la lista.' using errcode = '22023'; end if;
 end;
 $$;
@@ -498,8 +544,8 @@ begin
     raise exception 'Esta invitación no corresponde a tu cuenta o tu correo no está confirmado.' using errcode = '42501'; end if;
   if invitation.status = 'revoked' or (invitation.status = 'pending' and invitation.expires_at <= now()) then
     raise exception 'La invitación venció o fue cancelada. Pide que la envíen de nuevo.' using errcode = '22023'; end if;
-  if invitation.status = 'pending' and not exists (select 1 from public.projectflow_project_members where project_id = invitation.project_id
-      and user_id = invitation.invited_by and active and (role = 'admin' or (role = 'pm' and invitation.role = 'qa'))) then
+  if invitation.status = 'pending' and not (public.projectflow_user_role(invitation.project_id, invitation.invited_by) = 'admin' or
+      (public.projectflow_user_role(invitation.project_id, invitation.invited_by) = 'pm' and invitation.role in ('viewer','qa','pm_junior'))) then
     raise exception 'La persona que invitó ya no puede conceder este acceso.' using errcode = '42501'; end if;
   if invitation.status = 'accepted' and (invitation.accepted_by is distinct from auth.uid() or not exists (
     select 1 from public.projectflow_project_members where project_id = invitation.project_id and user_id = auth.uid() and active)) then
@@ -519,6 +565,7 @@ declare invitation public.projectflow_invitations; result jsonb;
 begin
   select * into invitation from public.projectflow_invitations where id = p_invitation_id;
   if not found then raise exception 'El enlace de invitación ya no es válido.' using errcode = '22023'; end if;
+  perform pg_advisory_xact_lock(724011);
   perform 1 from public.projectflow_state where project_id = invitation.project_id for update;
   select * into invitation from public.projectflow_invitations where id = p_invitation_id for update;
   result := public.projectflow_get_invitation(p_invitation_id);
@@ -528,8 +575,11 @@ begin
   if exists (select 1 from public.projectflow_project_members where project_id = invitation.project_id and user_id = auth.uid() and active) then
     raise exception 'Ya tienes un rol en este proyecto. El admin debe cambiarlo desde los permisos.' using errcode = '22023'; end if;
   insert into public.projectflow_project_members(project_id, user_id, can_manage, active, role)
-    values (invitation.project_id, auth.uid(), invitation.role = 'admin', true, invitation.role)
+    values (invitation.project_id, auth.uid(), false, true, case when invitation.role = 'admin' then 'pm' else invitation.role end)
     on conflict (project_id, user_id) do update set active = true, role = excluded.role, can_manage = excluded.can_manage;
+  if invitation.role = 'admin' then
+    insert into public.projectflow_global_admins(user_id) values(auth.uid()) on conflict(user_id) do update set active = true;
+  end if;
   update public.projectflow_invitations set status = 'accepted', accepted_by = auth.uid() where id = p_invitation_id;
   return public.projectflow_get_invitation(p_invitation_id);
 end;
@@ -545,11 +595,15 @@ begin
   if member_role not in ('leader', 'responsible') or member_role is null then raise exception 'Usa leader o responsible.'; end if;
   select id into member_id from auth.users where lower(email) = lower(trim(member_email));
   if member_id is null then raise exception 'Crea primero la cuenta en Authentication > Users.'; end if;
+  perform pg_advisory_xact_lock(724011);
+  if member_role = 'leader' then
+    insert into public.projectflow_global_admins(user_id) values(member_id) on conflict(user_id) do update set active = true;
+  end if;
   insert into public.projectflow_members(user_id,role,active) values (member_id,member_role,true)
     on conflict(user_id) do update set role = excluded.role, active = true;
   select project_id into original_id from public.projectflow_state where id = 1;
   insert into public.projectflow_project_members(project_id,user_id,can_manage,active,role)
-    values (original_id,member_id,member_role='leader',true,case when member_role='leader' then 'admin' else 'pm_junior' end)
+    values (original_id,member_id,false,true,case when member_role='leader' then 'pm' else 'pm_junior' end)
     on conflict(project_id,user_id) do update set can_manage=excluded.can_manage,active=true,role=excluded.role;
 end;
 $$;

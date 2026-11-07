@@ -1,103 +1,82 @@
 # Roles de ProjectFlow
 
-Los roles se asignan **por proyecto**. Una misma cuenta puede ser PM en uno,
-Consultor / QA en otro y tener solo lectura en los demás.
+**Admin global** administra toda la web y todos los proyectos existentes y futuros.
+**PM** administra solo los proyectos donde tiene ese rol y únicamente puede asignar
+roles inferiores: Usuario, Consultor / QA y PM menor. No modifica a otros PM,
+admins ni su propio rol. Solo un Admin global puede nombrar otro Admin global.
 
-| Rol | Leer | Enviar solicitudes e ideas | Gestionar datos | Crear proyectos | Invitar | Cambiar roles y retirar permisos |
-| --- | --- | --- | --- | --- | --- | --- |
-| Usuario | Sí, sin cuenta | No | No | No | No | No |
-| Consultor / QA | Sí | Sí | No | No | No | No |
-| PM menor | Sí | Sí | Sí | Sí | No | No |
-| PM | Sí | Sí | Sí | Sí | Como Consultor / QA | No |
-| Admin | Sí | Sí | Sí | Sí | Con el rol elegido | Sí |
+| Rol | Alcance | Datos | Invitaciones y roles |
+| --- | --- | --- | --- |
+| Usuario | Lectura con enlace, sin cuenta | Solo lectura | No |
+| Consultor / QA | Proyectos asignados | Leer y enviar solicitudes, ideas o errores | No |
+| PM menor | Proyectos asignados | Gestionar agenda, plan, ficha, tareas, revisiones, acuerdos y respaldos; crear proyectos | No |
+| PM | Proyectos asignados | Gestión completa y creación de proyectos | Invitar, cambiar y retirar únicamente roles inferiores |
+| Admin global | Todos los proyectos | Gestión completa | Todos los roles, incluidos otros admins globales |
 
-Gestionar datos incluye agenda, semanas, ficha del proyecto, solicitudes,
-revisiones, acuerdos y restaurar respaldos. Ajustar el tamaño de letra o copiar el
-enlace de lectura sigue disponible para todos.
+El enlace público sigue permitiendo leer sin cuenta. Retirar la participación no
+retira la lectura pública. Las preferencias de apariencia están disponibles para todos.
 
-## Activar los roles en Supabase
+## Activar la actualización
 
-1. Abre [el SQL completo actualizado](https://raw.githubusercontent.com/uribemaxi2-gif/ProjectFlow/main/supabase/setup.sql).
-2. Copia todo en **Supabase → SQL Editor → New query** y pulsa **Run**.
-3. Recarga ProjectFlow. En **⚙ Ajustes → Mi cuenta** aparecerá tu rol.
+1. Copia todo [supabase/setup.sql](https://raw.githubusercontent.com/uribemaxi2-gif/ProjectFlow/main/supabase/setup.sql).
+2. En Supabase abre **SQL Editor → New query**, pega y pulsa **Run**.
+3. Recarga ProjectFlow. **Ajustes → Mi cuenta** muestra el rol y
+   **Ajustes → Proyecto y enlace → Roles e invitaciones** permite gestionarlo.
 
-La actualización conserva los datos, cuentas y permisos retirados:
+Publicar la web no ejecuta el SQL remoto. Hasta ejecutarlo, se mantienen los
+permisos anteriores y la web muestra un aviso de actualización.
+No hay que reconfigurar Brevo, SMTP ni las contraseñas.
 
-- Los propietarios anteriores pasan a **Admin**.
-- Los editores anteriores pasan a **PM menor**.
-- Las invitaciones anteriores conservan el acceso de edición que ofrecían,
-  ahora como PM menor. Las nuevas usan los roles elegidos en la web.
-- Repetir el SQL no restaura permisos retirados ni deshace roles ya asignados.
+La migración conserva los datos y convierte los admins activos anteriores en
+admins globales. Sus participaciones locales quedan como PM. Los demás roles y
+permisos retirados se conservan. Las invitaciones pendientes antiguas que ofrecían
+Admin local pasan a PM para no conceder acceso global sin una nueva decisión.
+Repetir el SQL no restaura una administración global retirada.
 
-Si el envío con Brevo ya funciona, **no hay que volver a configurar el correo**.
-Este SQL no modifica SMTP, contraseñas ni plantillas de Supabase Auth.
-La web mantiene el acceso anterior hasta que se ejecute la actualización.
+## Administrar personas
 
-## Administrar cuentas
+Selecciona el proyecto y abre **Roles e invitaciones**. Para invitar, escribe el
+correo y elige **Rol al aceptar**. Para cambiar una participación aceptada,
+selecciona el rol junto a la persona y pulsa **Guardar rol**.
 
-Como admin, selecciona el proyecto y abre
-**⚙ Ajustes → Proyecto y enlace → Roles e invitaciones**.
+El selector del PM solo ofrece Usuario, Consultor / QA y PM menor. Los PM y admins
+aparecen en la lista sin controles de modificación para él. Puede gestionar las
+invitaciones de roles inferiores del proyecto, incluso si las preparó otro gestor.
+Las invitaciones de PM o Admin global quedan reservadas al Admin global.
 
-Para invitar, escribe el correo y elige **Rol al aceptar**. La persona verá el rol
-y sus permisos antes de aceptar. La opción inicial es Consultor / QA.
-Para cambiar un rol ya aceptado, busca la cuenta, elige el nuevo nivel y pulsa
-**Guardar rol**. Solo se modifica ese proyecto.
+Asignar **Admin global** da acceso a toda la web, no solo al proyecto seleccionado.
+Todos los admins globales aparecen en las listas de acceso, aunque no tengan una
+participación local en ese proyecto. El selector de proyectos de un Admin muestra
+todos los proyectos, sin necesitar invitación.
 
-**Usuario · Solo lectura** permite mantener una cuenta en el proyecto sin que
-pueda agregar o modificar datos. También se puede leer sin iniciar sesión.
-**Quitar permiso** retira la participación de esa cuenta; la lectura pública
-permanece disponible. Los cambios de rol y las revocaciones invalidan invitaciones
-anteriores de esa cuenta para que no recuperen un permiso antiguo.
+Al cambiar un Admin global a un rol inferior, pierde la administración global y
+recibe el rol seleccionado en el proyecto actual; conserva sus participaciones
+locales en los demás. **Retirar Admin global** también retira su participación en
+el proyecto actual. La web debe conservar al menos un Admin global: primero nombra
+a otro antes de retirar o rebajar al último.
 
-No se puede retirar ni rebajar al último admin del proyecto. Primero debe haber
-otro admin activo. Un admin puede cambiar su propio nivel si existe otro; la web
-le pedirá actualizar su acceso después del cambio.
+Los cambios de rol invalidan las invitaciones anteriores del destinatario en ese
+proyecto. Retirar la administración global invalida sus invitaciones de acceso en
+toda la web. Cada aceptación vuelve a comprobar los permisos actuales del remitente.
 
-## Invitaciones del PM
+## Solicitudes y creación de proyectos
 
-El PM dispone de **Invitar personas** en los ajustes. Sus invitaciones son siempre
-para **Consultor / QA**, sin selector de roles. Puede ver, reenviar y cancelar
-sus propias invitaciones pendientes. No administra invitaciones ajenas, no cambia
-roles existentes y no puede restablecer permisos que un admin haya retirado.
+QA envía solicitudes desde **Mi proyecto → Solicitudes → Nueva tarea**. El servidor
+registra autor, fecha y estado Pendiente. QA no edita ni elimina registros, no
+aprueba solicitudes y no modifica la agenda, el plan o la ficha. Reintentar el mismo
+envío no duplica la solicitud.
 
-El destinatario verifica su correo, crea su contraseña si es nuevo y acepta.
-Un admin puede ascenderlo después. Si quien envió una invitación pendiente pierde
-el permiso necesario, esa invitación no podrá aceptarse mientras no lo recupere.
+Al crear un proyecto, PM y PM menor conservan su nivel. No se copian otros
+participantes. Los admins globales tienen acceso automático a ese proyecto nuevo.
 
-## Solicitudes de Consultor / QA
+## Verificación
 
-En **Mi proyecto → Solicitudes**, pulsa **Nueva tarea** y describe la solicitud,
-idea o error. Puedes sugerir prioridad y fecha e indicar un enlace relacionado.
-La solicitud entra como **Pendiente**, con identidad y fecha registradas por el
-servidor. Un PM menor, PM o admin gestiona su evaluación y estado.
+Los permisos se validan en PostgreSQL además de los controles de la interfaz.
+Las tablas de permisos, admins globales e invitaciones no son accesibles directamente
+desde el navegador. Las modificaciones de permisos se serializan para proteger la
+jerarquía y al último admin global. Cada escritura valida el acceso actual.
+Las pestañas visibles revisan los cambios de rol aproximadamente cada 30 segundos.
 
-QA puede consultar los detalles de todos los registros, pero no editarlos,
-eliminarlos, aprobarlos ni modificar la agenda, el plan, la ficha o los respaldos.
-Si falla la respuesta al enviar, el formulario conserva lo escrito. Reintentar
-la misma solicitud no crea una segunda copia.
-
-## Proyectos creados por PM menor o PM
-
-Al pulsar **Nuevo proyecto**, el creador conserva su nivel de PM menor o PM.
-Los admins del proyecto seleccionado quedan como admins del nuevo proyecto.
-Los demás participantes no se copian. Así, crear un proyecto no permite al PM
-ascenderse ni concederse permisos para administrar roles.
-
-Un admin que crea un proyecto queda como admin de ese proyecto.
-
-## Verificación y límites
-
-La autorización se comprueba en funciones de PostgreSQL, además de mostrar las
-acciones correspondientes en la web. Cambiar HTML o llamar directamente a las
-funciones desde la consola no concede permisos adicionales. Las tablas de roles,
-invitaciones y recibos de solicitudes no son accesibles directamente desde la web.
-
-Cada escritura comprueba los permisos actuales. Las pestañas abiertas revisan
-cambios de rol cada 30 segundos mientras están visibles; si el rol cambia, piden
-actualizar el acceso. Los controles que todavía se vean antes de actualizar no permiten
-evitar la comprobación en la base de datos.
-
-`npm test` comprueba los roles, la migración, el aislamiento entre proyectos,
-invitaciones y solicitudes. `npm run test:browser` verifica las pantallas,
-el móvil, la lectura pública y los reintentos. Son pruebas locales con Supabase
-simulado para el navegador; no envían correos reales ni actualizan tu base remota.
+`npm test` verifica SQL, migración, jerarquía, aislamiento e invitaciones.
+`npm run test:browser` verifica la interfaz con Supabase simulado, sin enviar correos
+reales ni modificar la base remota.

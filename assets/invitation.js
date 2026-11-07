@@ -54,7 +54,7 @@
     find('inv-project').textContent = invitation.name;
     const role = invitation.role || 'pm_junior';
     find('inv-role').textContent = 'Rol: ' + (ProjectFlowRoles.labels[role] || 'Acceso al proyecto');
-    find('inv-permissions').textContent = (ProjectFlowRoles.descriptions[role] || '') + ' El permiso corresponde únicamente a este proyecto.';
+    find('inv-permissions').textContent = (ProjectFlowRoles.descriptions[role] || '') + (role === 'admin' ? ' Este rol da acceso a todos los proyectos de la web.' : ' El permiso corresponde únicamente a este proyecto.');
     // Supabase puede guardar una contraseña aleatoria al crear cuentas con OTP.
     // has_password no demuestra que el destinatario conozca esa contraseña.
     document.querySelector('[name="password-mode"][value="new"]').checked = true;

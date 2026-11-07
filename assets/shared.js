@@ -144,7 +144,7 @@
   }
   async function checkPermissions() {
     const state = await requestState();
-    if (projectInfo.role !== stateRole(state) || projectInfo.rolesVersion !== (state.roles_version || 0)) {
+    if (projectInfo.role !== stateRole(state) || projectInfo.rolesVersion !== (state.roles_version || 0) || projectInfo.scopeVersion !== (state.scope_version || 1)) {
       lock('Tus permisos cambiaron. Pulsa Reintentar para cargar el acceso actual.');
       return false;
     }
@@ -295,7 +295,7 @@
     cache = copy(state.data);
     projectId = state.project_id || projectId;
     projectInfo = { id: projectId, name: state.name || cache[KEYS[2]]?.project?.name || 'Mi proyecto',
-      role: stateRole(state), rolesVersion: state.roles_version || 0, canManage: !!state.can_manage,
+      role: stateRole(state), rolesVersion: state.roles_version || 0, scopeVersion: state.scope_version || 1, canManage: !!state.can_manage,
       canInvite: state.roles_version ? !!state.can_invite : !!state.can_manage,
       canCreate: !!state.can_create, multi, signedIn: !!session };
     preserveProjectLinks();
@@ -382,7 +382,7 @@
       if (!unlocked || pending || document.hidden) return;
       try {
         const state = await requestState();
-        if (projectInfo.role !== stateRole(state) || projectInfo.rolesVersion !== (state.roles_version || 0)) {
+        if (projectInfo.role !== stateRole(state) || projectInfo.rolesVersion !== (state.roles_version || 0) || projectInfo.scopeVersion !== (state.scope_version || 1)) {
           lock('Tus permisos cambiaron. Pulsa Reintentar para cargar el acceso actual.');
           return;
         }

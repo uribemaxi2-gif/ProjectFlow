@@ -69,9 +69,8 @@ Para invitar a participar:
 
 1. Activa una vez las [invitaciones por correo](INVITACIONES.md), incluido el SMTP.
 2. Abre el proyecto que quieres compartir como admin o PM.
-3. Ve a **⚙ Ajustes → Proyecto y enlace → Roles e invitaciones** (admin) o
-   **Invitar personas** (PM), escribe su correo y pulsa **Enviar invitación**.
-   El admin elige el rol; el PM siempre invita como Consultor / QA.
+3. Ve a **⚙ Ajustes → Proyecto y enlace → Roles e invitaciones**, escribe su correo y pulsa **Enviar invitación**.
+   Admin global elige cualquier rol; PM solo Usuario, Consultor / QA o PM menor.
 4. Esa persona abre el correo, crea su propia contraseña si es nueva y pulsa
    **Aceptar invitación**. Si ya tenía contraseña, la conserva.
 
@@ -81,11 +80,11 @@ Preparar o enviar una invitación no concede edición hasta que se acepte.
 Las invitaciones pendientes se pueden **Reenviar** o **Cancelar** desde ese panel.
 
 Autorizar a alguien en un proyecto **no** le concede edición en los demás.
-Solo el admin puede cambiar roles y retirar permisos. Para retirar el permiso,
+Admin global administra todos los proyectos y roles. PM solo cambia o retira roles inferiores dentro de sus proyectos. Para retirar el permiso,
 abre **Roles e invitaciones → Quitar permiso** en ese proyecto.
 La siguiente escritura se rechazará. La lectura seguirá disponible con el enlace.
 
-Los permisos anteriores se migran: los propietarios pasan a Admin y los editores
+Los permisos anteriores se migran: los propietarios pasan a Admin global y los editores
 a PM menor. Consulta la [guía de roles](ROLES.md) para ver los cinco niveles,
 el envío de solicitudes y cómo conservan su rol los PM al crear proyectos.
 

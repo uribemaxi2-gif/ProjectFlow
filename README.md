@@ -9,9 +9,9 @@ a los que tienes acceso con tu cuenta; cada proyecto tiene su propio enlace de l
 - `proyecto.html`: ficha, solicitudes y tareas, revisiones, notas y respaldos.
 - `assets/projects.js`: crear proyectos, compartir enlaces y administrar editores.
 
-Hay cinco [roles por proyecto](ROLES.md): Usuario (lectura sin cuenta),
-Consultor / QA (envía solicitudes), PM menor (gestiona datos), PM (también invita
-como QA) y Admin (administra todos los roles y permisos). Las invitaciones verifican
+Hay cinco [roles](ROLES.md): Usuario (lectura sin cuenta),
+Consultor / QA (envía solicitudes), PM menor (gestiona datos), PM (administra su proyecto y asigna roles inferiores) y Admin global
+(administra toda la web, todos los proyectos y puede nombrar otros admins). Las invitaciones verifican
 el correo y permiten crear una contraseña personal. Conocer el enlace solo permite
 consultar ese proyecto, sin mostrar el catálogo personal.
 
