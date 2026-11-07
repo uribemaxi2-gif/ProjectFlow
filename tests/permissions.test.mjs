@@ -408,12 +408,12 @@ test('QA appends requests with server-owned status and preserves all project dat
     await denied(() => rpc('projectflow_save_project', [rolesProject, JSON.stringify([update('projecthub.cliente.v1',before.data['projecthub.cliente.v1'],{})])]));
     const after = await rpc('projectflow_submit_request', [rolesProject,JSON.stringify(payload)]);
     const request = after.data['projecthub.cliente.v1'].requests[0];
-    assert.equal(request.status,'Pendiente'); assert.equal(request.submittedBy,qa); assert.equal(request.title,payload.title);
+    assert.equal(request.requestedRole,'qa'); assert.equal(request.status,'Pendiente'); assert.equal(request.submittedBy,qa); assert.equal(request.title,payload.title);
     assert.deepEqual(after.data['equipo14.personas'],before.data['equipo14.personas']);
     assert.deepEqual(after.data['equipo14.hitos'],before.data['equipo14.hitos']);
     for (const key of ['project','reviews','agreements']) assert.deepEqual(after.data['projecthub.cliente.v1'][key],before.data['projecthub.cliente.v1'][key]);
     assert.equal((await rpc('projectflow_submit_request',[rolesProject,JSON.stringify(payload)])).data['projecthub.cliente.v1'].requests.length,1);
-    for (const extra of [{status:'Aprobada'},{decision:'Aceptada'},{submittedBy:leader},{createdAt:'2000-01-01'},{role:'admin'},{requests:[]}]) {
+    for (const extra of [{status:'Aprobada'},{decision:'Aceptada'},{submittedBy:leader},{createdAt:'2000-01-01'},{role:'admin'},{requestedRole:'admin'},{requests:[]}]) {
       await assert.rejects(() => rpc('projectflow_submit_request',[rolesProject,JSON.stringify({...payload,id:crypto.randomUUID(),...extra})]), e=>e.code==='22023');
     }
     for (const invalid of [{title:''},{detail:''},{detail:'x'.repeat(5001)},{category:'admin'},{reviewRequired:'true'},{priority:null},{id:'bad'}]) {

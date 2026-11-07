@@ -248,7 +248,7 @@ class Backend:
                 return
             section = data.setdefault(PROJECT, {'schema':1,'project':{},'requests':[],'reviews':[],'agreements':[],'activity':[]})
             section['requests'].append({**payload,'status':'Pendiente','decision':'','createdDate':'2026-11-05',
-                                        'createdAt':'2026-11-05T12:00:00Z','updatedAt':'2026-11-05T12:00:00Z','submittedBy':email})
+                                        'createdAt':'2026-11-05T12:00:00Z','updatedAt':'2026-11-05T12:00:00Z','submittedBy':email,'requestedRole':role})
             self.receipts[receipt_key] = copy.deepcopy(payload)
             if self.fail_after_request:
                 self.fail_after_request = False
@@ -424,7 +424,7 @@ class SharedProjectTests(unittest.TestCase):
         self.wait_saved(page)
         page.reload()
         expect(page.locator('#hero-name')).to_have_text('Proyecto compartido')
-        page.locator('#page-resumen [data-create="solicitudes"]').click()
+        page.get_by_role('button', name='+ Nueva solicitud', exact=True).click()
         page.locator('#f-title').fill('Solicitud compartida')
         page.locator('#f-detail').fill('Detalle de la solicitud.')
         self.backend.fail_next_save = True
@@ -440,6 +440,23 @@ class SharedProjectTests(unittest.TestCase):
         self.login(other, 'responsible@example.test', 'proyecto.html')
         expect(other.locator('#recent-requests')).to_contain_text('Solicitud compartida')
         expect(other.locator('#stat-total')).to_have_text('1')
+        expect(other.locator('#recent-requests')).to_contain_text('Admin global')
+        expect(other.locator('#recent-requests')).to_contain_text('Detalle de la solicitud.')
+        expect(other.locator('#recent-requests')).to_contain_text('Urgencia: Media')
+        other.get_by_role('button', name='+ Nueva revisión', exact=True).click()
+        other.locator('#f-title').fill('Revisión compartida')
+        other.locator('#f-criteria').fill('Comprobar las fechas de entrega.')
+        other.locator('#f-priority').select_option('Alta')
+        other.locator('#entry-submit').click()
+        expect(other.locator('#edit-dialog')).to_be_hidden()
+        other.reload()
+        expect(other.locator('#recent-reviews')).to_contain_text('Revisión compartida')
+        expect(other.locator('#recent-reviews')).to_contain_text('PM menor')
+        expect(other.locator('#recent-reviews')).to_contain_text('Urgencia: Alta')
+        reader = self.page(mobile=True); reader.goto(self.base+'/proyecto.html')
+        expect(reader.locator('#recent-reviews')).to_contain_text('Comprobar las fechas de entrega.')
+        expect(reader.get_by_role('button', name='+ Nueva solicitud', exact=True)).to_be_hidden()
+        expect(reader.get_by_role('button', name='+ Nueva revisión', exact=True)).to_be_hidden()
 
     def test_backup_import_restores_numeric_team_keys_for_everyone(self):
         page = self.page()
@@ -1099,7 +1116,7 @@ class SharedProjectTests(unittest.TestCase):
         self.set_font_level(page, 7); self.close_settings(page)
         expect(page.locator('#pf-new-project')).to_be_hidden()
         expect(page.locator('#pf-project-access')).to_be_hidden()
-        page.locator('#page-resumen [data-create="solicitudes"]').click()
+        page.get_by_role('button', name='+ Nueva solicitud', exact=True).click()
         expect(page.locator('#f-status')).to_have_count(0)
         expect(page.locator('#f-decision')).to_have_count(0)
         expect(page.locator('#delete-entry')).to_be_hidden()
@@ -1119,6 +1136,8 @@ class SharedProjectTests(unittest.TestCase):
         expect(page.locator('#edit-dialog')).to_be_hidden()
         self.assertEqual(len(self.backend.data[PROJECT]['requests']), 1)
         self.assertEqual(self.backend.data[PROJECT]['requests'][0]['status'], 'Pendiente')
+        expect(page.locator('#recent-requests')).to_contain_text('Consultor / QA')
+        expect(page.get_by_role('button', name='+ Nueva revisión', exact=True)).to_be_hidden()
         self.assertEqual(self.backend.data[TEAM]['schedule'][0]['title'], 'Cambio de PM')
         if page.locator('#pf-menu-toggle').get_attribute('aria-expanded') == 'false': page.locator('#pf-menu-toggle').click()
         page.locator('.side-link[data-page="solicitudes"]').click()

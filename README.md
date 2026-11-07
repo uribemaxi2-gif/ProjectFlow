@@ -34,6 +34,13 @@ se guarda en este navegador; no modifica los datos compartidos ni las preferenci
 de otras personas. El antiguo **Texto grande** se conserva como nivel 5. También
 se respeta el zoom y el tamaño base que la persona configure en su navegador.
 
+El resumen de **Mi proyecto** permite crear solicitudes y revisiones directamente.
+Las tarjetas muestran título, rol de quien creó el registro, descripción y urgencia.
+Las solicitudes conservan su campo Prioridad y las revisiones incluyen Urgencia.
+El rol se conserva tal como era al crear el registro; los anteriores sin ese dato
+muestran «Cargo no registrado». Para registrar el rol en nuevas solicitudes de QA,
+se necesita ejecutar el SQL actualizado; el servidor obtiene ese rol de la cuenta.
+
 ## Configurar o actualizar
 
 Ejecuta **todo** [supabase/setup.sql](supabase/setup.sql) en el SQL Editor de Supabase.

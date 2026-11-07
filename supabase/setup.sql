@@ -358,6 +358,7 @@ begin
     'requestedBy',coalesce(nullif(trim(p_request->>'requestedBy'),''),'Consultor / QA'),
     'dueDate',coalesce(p_request->>'dueDate',''),'link',coalesce(p_request->>'link',''),
     'reviewRequired',coalesce(p_request->'reviewRequired','true'::jsonb),'status','Pendiente','decision','',
+    'requestedRole',public.projectflow_role(p_project_id),
     'createdDate',to_char(now() at time zone 'UTC','YYYY-MM-DD'), 'createdAt',now(),'updatedAt',now(),'submittedBy',auth.uid());
   section := jsonb_set(section,'{requests}',coalesce(section->'requests','[]'::jsonb) || jsonb_build_array(entry));
   history := jsonb_build_array(jsonb_build_object('id',gen_random_uuid(),'at',now(),'kind','requests',
