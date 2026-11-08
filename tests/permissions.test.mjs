@@ -613,3 +613,36 @@ test('PM grants all three lower roles but cannot modify peers, global admins or 
     assert.equal((await asUser(user,()=>rpc('projectflow_get_project',[unrelatedProject]))).project_role,'viewer');
   }
 });
+
+test('responsibles are eligible project participants; private choices and public labels stay separate', async()=>{
+  const project=(await asUser(leader,()=>rpc('projectflow_create_project',['Asignaciones',null,null,1]))).project_id;
+  const worker=crypto.randomUUID(), other=crypto.randomUUID();
+  await db.query('insert into auth.users(id,email) values($1,$2),($3,$4)',[worker,'worker@example.test',other,'other-project@example.test']);
+  await db.query("insert into public.projectflow_project_members(project_id,user_id,role) values($1,$2,'pm_junior'),($1,$3,'qa'),($4,$5,'pm_junior')",[project,worker,qa,unrelatedProject,other]);
+  await asUser(leader,async()=>{
+    const choices=await rpc('projectflow_list_assignees',[project]);
+    assert.ok(choices.some(p=>p.id===worker));assert.ok(choices.some(p=>p.id===leader));
+    assert.ok(!choices.some(p=>p.id===other));
+    const initial=await rpc('projectflow_get_project',[project]), section=initial.data['projecthub.cliente.v1'];
+    const next={...section,requests:[{id:'assigned-request',title:'Tarea',requestedRole:'admin',assigneeId:worker,assigneeName:'Nombre falsificado'}]};
+    const saved=await rpc('projectflow_save_project',[project,JSON.stringify([update('projecthub.cliente.v1',section,next)])]);
+    assert.equal(saved.data['projecthub.cliente.v1'].requests[0].assigneeName,'worker');
+    const current=saved.data['projecthub.cliente.v1'];
+    for(const invalid of [other,crypto.randomUUID(),'not-a-uuid',null]) {
+      await assert.rejects(()=>rpc('projectflow_save_project',[project,JSON.stringify([update('projecthub.cliente.v1',current,{...current,requests:[{...current.requests[0],assigneeId:invalid}]})])]),e=>e.code==='22023');
+    }
+  });
+  await asUser(qa,()=>denied(()=>rpc('projectflow_list_assignees',[project])));
+  await asUser(null,()=>denied(()=>rpc('projectflow_list_assignees',[project])),'anon');
+  await asUser(leader,()=>rpc('projectflow_set_editor',[project,'worker@example.test',false]));
+  await asUser(leader,async()=>{
+    assert.ok(!(await rpc('projectflow_list_assignees',[project])).some(p=>p.id===worker));
+    const state=await rpc('projectflow_get_project',[project]),current=state.data['projecthub.cliente.v1'];
+    const saved=await rpc('projectflow_save_project',[project,JSON.stringify([update('projecthub.cliente.v1',current,{...current,requests:[{...current.requests[0],title:'Editada',assigneeName:'No reemplazar'}]})])]);
+    assert.equal(saved.data['projecthub.cliente.v1'].requests[0].assigneeName,'worker');
+    const next=saved.data['projecthub.cliente.v1'];
+    const cleared=await rpc('projectflow_save_project',[project,JSON.stringify([update('projecthub.cliente.v1',next,{...next,requests:[{...next.requests[0],assigneeId:''}]})])]);
+    assert.equal(cleared.data['projecthub.cliente.v1'].requests[0].assigneeName,'');
+  });
+  await asUser(qa,()=>assert.rejects(()=>rpc('projectflow_submit_request',[project,JSON.stringify({id:crypto.randomUUID(),title:'No asignar',detail:'Prueba',assigneeId:leader})]),e=>e.code==='22023'));
+});

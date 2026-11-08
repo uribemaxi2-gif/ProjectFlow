@@ -175,6 +175,57 @@ $$;
 revoke all on function public.projectflow_get_state() from public;
 grant execute on function public.projectflow_get_state() to anon, authenticated;
 
+-- Solo los editores pueden consultar cuentas para asignar trabajo.
+create or replace function public.projectflow_list_assignees(p_project_id uuid)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+begin
+  if not exists(select 1 from public.projectflow_state where project_id = p_project_id)
+    or not public.projectflow_can_edit_project(p_project_id) then
+    raise exception 'No puedes asignar responsables en este proyecto.' using errcode = '42501'; end if;
+  return (select coalesce(jsonb_agg(jsonb_build_object('id',u.id,'email',u.email,
+    'name',split_part(u.email,'@',1),'role',public.projectflow_user_role(p_project_id,u.id)) order by u.email),'[]'::jsonb)
+    from auth.users u where public.projectflow_user_role(p_project_id,u.id) in ('qa','pm_junior','pm','admin'));
+end;
+$$;
+revoke all on function public.projectflow_list_assignees(uuid) from public, anon;
+grant execute on function public.projectflow_list_assignees(uuid) to authenticated;
+
+-- Validar nuevas asignaciones; conservar el nombre histórico si se retiró al responsable.
+create or replace function public.projectflow_validate_assignees(p_project_id uuid, p_previous jsonb, p_next jsonb)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare entry jsonb; previous jsonb; assigned text; assigned_name text; entries jsonb := '[]'::jsonb;
+begin
+  if jsonb_typeof(p_next->'requests') is distinct from 'array' then return p_next; end if;
+  for entry in select value from jsonb_array_elements(p_next->'requests') loop
+    previous := null;
+    if jsonb_typeof(p_previous->'requests') = 'array' then
+      select value into previous from jsonb_array_elements(p_previous->'requests') where value->>'id' = entry->>'id' limit 1;
+    end if;
+    if not (entry ? 'assigneeId') and coalesce(previous ? 'assigneeId',false) then
+      entry := entry || jsonb_build_object('assigneeId',previous->'assigneeId','assigneeName',previous->'assigneeName');
+    end if;
+    if entry ? 'assigneeId' then
+      if jsonb_typeof(entry->'assigneeId') <> 'string' then
+        raise exception 'Selecciona un responsable válido.' using errcode = '22023'; end if;
+      assigned := entry->>'assigneeId';
+      if assigned = '' then assigned_name := '';
+      elsif assigned = previous->>'assigneeId' then assigned_name := coalesce(previous->>'assigneeName','');
+      else
+        if assigned !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+          raise exception 'Selecciona un responsable válido.' using errcode = '22023'; end if;
+        if public.projectflow_user_role(p_project_id,assigned::uuid) not in ('qa','pm_junior','pm','admin') then
+          raise exception 'Esa persona ya no participa en este proyecto. Actualiza los responsables.' using errcode = '22023'; end if;
+        select split_part(email,'@',1) into assigned_name from auth.users where id = assigned::uuid;
+      end if;
+      entry := jsonb_set(entry,'{assigneeName}',to_jsonb(coalesce(assigned_name,'')));
+    end if;
+    entries := entries || jsonb_build_array(entry);
+  end loop;
+  return jsonb_set(p_next,'{requests}',entries);
+end;
+$$;
+revoke all on function public.projectflow_validate_assignees(uuid,jsonb,jsonb) from public, anon, authenticated;
+
 create or replace function public.projectflow_save_project(p_project_id uuid, p_updates jsonb)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
@@ -212,6 +263,9 @@ begin
     if coalesce(stored->section, 'null'::jsonb) is distinct from item->'expected' then
       raise exception 'Otra persona guardó cambios. Recarga antes de guardar de nuevo.'
         using errcode = '40001';
+    end if;
+    if section = 'projecthub.cliente.v1' then
+      item := jsonb_set(item,'{value}',public.projectflow_validate_assignees(target,stored->section,item->'value'));
     end if;
     stored := jsonb_set(stored, array[section], item->'value', true);
   end loop;

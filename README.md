@@ -37,6 +37,15 @@ se respeta el zoom y el tamaño base que la persona configure en su navegador.
 El resumen de **Mi proyecto** permite crear solicitudes y revisiones directamente.
 Las tarjetas muestran título, rol de quien creó el registro, descripción y urgencia.
 Las solicitudes conservan su campo Prioridad y las revisiones incluyen Urgencia.
+El formulario muestra el rango del creador como dato automático, también para Admin.
+El rol y el estado aparecen a la derecha y las acciones al pie de las tarjetas.
+Las solicitudes permiten seleccionar un responsable (o «Sin asignar»), separado
+del solicitante. PM menor, PM y Admin eligen entre participantes activos del proyecto
+con rol QA o superior; QA envía solicitudes sin asignar responsables.
+El selector muestra el correo para distinguir cuentas; la tarjeta pública muestra
+solo la parte anterior a `@`. La base valida la asignación y conserva el nombre
+histórico si la cuenta deja de participar. Para activar el selector, ejecuta
+`supabase/setup.sql`; sin esa actualización se pueden conservar los datos actuales.
 El rol se conserva tal como era al crear el registro; los anteriores sin ese dato
 muestran «Cargo no registrado». Para registrar el rol en nuevas solicitudes de QA,
 se necesita ejecutar el SQL actualizado; el servidor obtiene ese rol de la cuenta.

@@ -44,6 +44,7 @@ dialog{border:0;border-radius:20px;padding:0;width:min(700px,calc(100% - 28px));
 </style>
 <link rel="stylesheet" href="assets/shared.css">
 <link rel="stylesheet" href="assets/display.css">
+<link rel="stylesheet" href="assets/project.css">
 </head>
 <body>
 <noscript>Activa JavaScript para consultar ProjectFlow.</noscript>
@@ -183,7 +184,7 @@ async function save(updates = {[STORAGE_KEY]:data}){
  const controls=$$('#entry-form input, #entry-form textarea, #entry-form select, #entry-form button, #project-form input, #project-form textarea, #project-form button, #backup-import-trigger');
  const wasDisabled=controls.map(el=>el.disabled);controls.forEach(el=>el.disabled=true);
  $('#sync-label').textContent='Guardando…';
- try{await ProjectFlow.setMany(updates);$('#sync-label').textContent='Guardado compartido';return true}
+ try{await ProjectFlow.setMany(updates);load();$('#sync-label').textContent='Guardado compartido';return true}
  catch(e){$('#sync-label').textContent='No guardado';toast(e.message,true);return false}
  finally{controls.forEach((el,i)=>el.disabled=wasDisabled[i]);saving=false;ProjectFlow.applyAccess()}
 }
@@ -196,15 +197,37 @@ function go(page){if(!['resumen','solicitudes','revisiones','acuerdos','proyecto
 function empty(iconName,title,desc,buttonKind){return `<div class="placeholder ${buttonKind?'empty-banner':''}"><div class="empty-ico">${icon(iconName,'lg')}</div><strong>${escapeHtml(title)}</strong><p>${escapeHtml(desc)}</p>${buttonKind?`<button type="button" class="btn primary small" ${buttonKind==='solicitudes'?'data-pf-submit':'data-pf-edit'} data-create="${buttonKind}">${icon('plus')}Agregar primer registro</button>`:''}</div>`}
 function requesterRole(record){return ProjectFlowRoles.labels[record.requestedRole]||'Cargo no registrado'}
 function urgency(record){return pill('Urgencia: '+(record.priority||'Sin definir'),record.priority==='Alta'?'red':record.priority==='Baja'?'gray':'orange')}
-function recentRecord(record,kind){return `<div class="item-row"><div class="item-copy"><div class="record-titleline"><span class="item-title">${escapeHtml(record.title)}</span>${pill(requesterRole(record),'purple')}</div><p class="recent-detail">${escapeHtml(safeShort(kind==='requests'?record.detail:record.criteria,220)||'Sin descripción adicional.')}</p><div class="item-meta">${urgency(record)}${pill(record.status||(kind==='requests'?'Pendiente':'Pendiente de revisión'))}</div></div></div>`}
+function recentRecord(r,kind){return `<div class="item-row"><div class="item-copy">${recordHeader(r,r.status||(kind==='requests'?'Pendiente':'Pendiente de revisión'))}<p class="recent-detail">${escapeHtml(safeShort(kind==='requests'?r.detail:r.criteria,220)||'Sin descripción adicional.')}</p><div class="item-meta">${urgency(r)}</div>${kind==='requests'?`<p class="record-assignee"><b>Responsable:</b> ${escapeHtml(assigneeName(r))}</p>`:''}</div></div>`}
 function renderDashboard(){let pendingReq=data.requests.filter(r=>r.status==='Pendiente'||r.status==='En evaluación');let pendingRev=data.reviews.filter(r=>r.status!=='Aprobado'&&r.status!=='Requiere cambios');$('#stat-total').textContent=data.requests.length;$('#stat-pending').textContent=pendingReq.length;$('#stat-reviews').textContent=pendingRev.length;$('#stat-approved').textContent=data.reviews.filter(r=>r.status==='Aprobado').length;$('#nav-requests').textContent=data.requests.length;$('#nav-reviews').textContent=pendingRev.length;$('#hero-name').textContent=data.project.name||'Gestión del proyecto';
  let req=sorted(data.requests).slice(0,4);$('#recent-requests').innerHTML=req.length?req.map(r=>recentRecord(r,'requests')).join(''):empty('inbox','Aún no hay solicitudes','Registra tu primera tarea para empezar el seguimiento.');
  let reviews=sorted(pendingRev).slice(0,4);$('#recent-reviews').innerHTML=reviews.length?reviews.map(r=>recentRecord(r,'reviews')).join(''):empty('clipboard','Sin revisiones pendientes','Cuando entregues un avance, regístralo para seguir tus avances.');
  $('#activity-list').innerHTML=data.activity.length?data.activity.slice(0,7).map(a=>`<div class="activity-line"><div class="activity-dot">${icon('activity')}</div><div class="activity-content"><b>${escapeHtml(a.title||'Actualización')}</b><p>${escapeHtml(a.detail||a.kind||'')}</p><time>${when(a.at)}</time></div></div>`).join(''):empty('activity','Todavía no hay actividad','Aquí aparecerán las altas y modificaciones de registros del proyecto.');}
 function safeShort(s,length=220){let str=String(s||'').replace(/\s+/g,' ').trim();return str.length>length?str.slice(0,length)+'…':str}
 function recordActions(kind,r){if(!ProjectFlow.canEdit())return `<div class="record-actions"><button type="button" class="btn small" data-view-kind="${kind}" data-view-id="${escapeHtml(r.id)}">Ver detalle</button></div>`;return `<div class="record-actions"><button type="button" class="btn small" data-edit-kind="${kind}" data-edit-id="${escapeHtml(r.id)}">${icon('edit')}Editar</button>${kind==='requests'?`<button type="button" class="btn small" data-pf-edit data-review-from="${escapeHtml(r.id)}">${icon('clipboard')}Solicitar revisión</button>`:''}</div>`}
-function renderRequests(){let term=$('#req-search').value.trim().toLocaleLowerCase('es');let status=$('#req-filter-status').value,priority=$('#req-filter-priority').value;const filtered=sorted(data.requests).filter(r=>(!status||r.status===status)&&(!priority||r.priority===priority)&&(!term||[r.title,r.detail,r.module,r.requestedBy,r.decision].join(' ').toLocaleLowerCase('es').includes(term)));$('#req-count').textContent=filtered.length+' resultado'+(filtered.length===1?'':'s');$('#requests-list').innerHTML=filtered.length?filtered.map(r=>`<article class="record panel"><div class="record-main"><div class="record-titleline"><h3>${escapeHtml(r.title)}</h3>${pill(r.category||'Solicitud','purple')}${pill(requesterRole(r),'purple')}</div><div class="record-status">${pill(r.status||'Pendiente')}${pill('Prioridad '+(r.priority||'Media'),r.priority==='Alta'?'red':r.priority==='Baja'?'gray':'orange')}${r.reviewRequired?pill('Requiere validación','blue'):''}</div><p>${escapeHtml(safeShort(r.detail)||'Sin descripción adicional.')}</p><div class="record-meta"><span>${icon('calendar')}Solicitud: ${when(r.createdDate)}</span><span>Módulo: ${escapeHtml(r.module||'Por definir')}</span><span>Solicitante: ${escapeHtml(r.requestedBy||'Sin especificar')}</span>${r.dueDate?`<span>Fecha objetivo: ${when(r.dueDate)}</span>`:''}</div>${r.decision?`<p style="margin-bottom:0"><b>Decisión:</b> ${escapeHtml(safeShort(r.decision,180))}</p>`:''}</div>${recordActions('requests',r)}</article>`).join(''):empty('inbox',data.requests.length?'Sin coincidencias':'No hay solicitudes registradas',data.requests.length?'Prueba con otros filtros o términos de búsqueda.':'Crea un registro por cada tarea, idea o cambio pendiente.',data.requests.length?'':'solicitudes')}
-function renderReviews(){let term=$('#rev-search').value.trim().toLocaleLowerCase('es'),status=$('#rev-filter-status').value;let filtered=sorted(data.reviews).filter(r=>(!status||r.status===status)&&(!term||[r.title,r.criteria,r.feedback,nameForRequest(r.requestId)].join(' ').toLocaleLowerCase('es').includes(term)));$('#rev-count').textContent=filtered.length+' resultado'+(filtered.length===1?'':'s');$('#reviews-list').innerHTML=filtered.length?filtered.map(r=>`<article class="record panel"><div class="record-main"><div class="record-titleline"><h3>${escapeHtml(r.title)}</h3>${pill(r.status||'Pendiente de revisión')}${pill(requesterRole(r),'purple')}</div><div class="record-status">${urgency(r)}</div><p>${escapeHtml(safeShort(r.criteria)||'Sin criterios de revisión detallados.')}</p><div class="record-meta"><span>${icon('calendar')}Revisar antes de: ${when(r.dueDate)}</span><span>Relacionado: ${escapeHtml(nameForRequest(r.requestId)||'General')}</span><span>Solicitada por: ${escapeHtml(r.requestedBy||'Mi proyecto')}</span></div>${r.feedback?`<p style="margin-bottom:0"><b>Observaciones:</b> ${escapeHtml(safeShort(r.feedback,180))}</p>`:''}</div>${recordActions('reviews',r)}</article>`).join(''):empty('clipboard',data.reviews.length?'Sin coincidencias':'Todavía no hay revisiones','Crea una revisión cuando necesites evaluar un avance o una decisión.',data.reviews.length?'':'revisiones')}
+function recordHeader(r,status){return `<div class="record-header"><h3>${escapeHtml(r.title)}</h3><div class="record-badges">${pill(requesterRole(r),'purple')}${pill(status)}</div></div>`}
+function assigneeName(r){return r.assigneeId?(r.assigneeName||'Responsable sin nombre'):'Sin asignar'}
+function renderRequests(){
+ const term=$('#req-search').value.trim().toLocaleLowerCase('es'),status=$('#req-filter-status').value,priority=$('#req-filter-priority').value;
+ const filtered=sorted(data.requests).filter(r=>(!status||r.status===status)&&(!priority||r.priority===priority)&&(!term||[r.title,r.detail,r.module,r.requestedBy,r.decision,assigneeName(r)].join(' ').toLocaleLowerCase('es').includes(term)));
+ $('#req-count').textContent=filtered.length+' resultado'+(filtered.length===1?'':'s');
+ $('#requests-list').innerHTML=filtered.length?filtered.map(r=>`<article class="record panel"><div class="record-main">
+ ${recordHeader(r,r.status||'Pendiente')}
+ <div class="record-status">${pill(r.category||'Solicitud','purple')}${pill('Prioridad '+(r.priority||'Media'),r.priority==='Alta'?'red':r.priority==='Baja'?'gray':'orange')}${r.reviewRequired?pill('Requiere validación','blue'):''}</div>
+ <p>${escapeHtml(safeShort(r.detail)||'Sin descripción adicional.')}</p>
+ <p class="record-assignee"><b>Responsable:</b> ${escapeHtml(assigneeName(r))}</p>
+ <div class="record-meta"><span>${icon('calendar')}Solicitud: ${when(r.createdDate)}</span><span>Módulo: ${escapeHtml(r.module||'Por definir')}</span><span>Solicitante: ${escapeHtml(r.requestedBy||'Sin especificar')}</span>${r.dueDate?`<span>Fecha objetivo: ${when(r.dueDate)}</span>`:''}</div>
+ ${r.decision?`<p><b>Decisión:</b> ${escapeHtml(safeShort(r.decision,180))}</p>`:''}</div>${recordActions('requests',r)}</article>`).join(''):empty('inbox',data.requests.length?'Sin coincidencias':'No hay solicitudes registradas',data.requests.length?'Prueba con otros filtros o términos de búsqueda.':'Crea un registro por cada tarea, idea o cambio pendiente.',data.requests.length?'':'solicitudes');
+}
+function renderReviews(){
+ const term=$('#rev-search').value.trim().toLocaleLowerCase('es'),status=$('#rev-filter-status').value;
+ const filtered=sorted(data.reviews).filter(r=>(!status||r.status===status)&&(!term||[r.title,r.criteria,r.feedback,nameForRequest(r.requestId)].join(' ').toLocaleLowerCase('es').includes(term)));
+ $('#rev-count').textContent=filtered.length+' resultado'+(filtered.length===1?'':'s');
+ $('#reviews-list').innerHTML=filtered.length?filtered.map(r=>`<article class="record panel"><div class="record-main">
+ ${recordHeader(r,r.status||'Pendiente de revisión')}<div class="record-status">${urgency(r)}</div>
+ <p>${escapeHtml(safeShort(r.criteria)||'Sin criterios de revisión detallados.')}</p>
+ <div class="record-meta"><span>${icon('calendar')}Revisar antes de: ${when(r.dueDate)}</span><span>Relacionado: ${escapeHtml(nameForRequest(r.requestId)||'General')}</span><span>Solicitada por: ${escapeHtml(r.requestedBy||'Mi proyecto')}</span></div>
+ ${r.feedback?`<p><b>Observaciones:</b> ${escapeHtml(safeShort(r.feedback,180))}</p>`:''}</div>${recordActions('reviews',r)}</article>`).join(''):empty('clipboard',data.reviews.length?'Sin coincidencias':'Todavía no hay revisiones','Crea una revisión cuando necesites evaluar un avance o una decisión.',data.reviews.length?'':'revisiones');
+}
 function renderAgreements(){let term=$('#agr-search').value.trim().toLocaleLowerCase('es'),kind=$('#agr-filter-kind').value;let filtered=sorted(data.agreements).filter(r=>(!kind||r.kind===kind)&&(!term||[r.title,r.description,r.owner,r.nextAction].join(' ').toLocaleLowerCase('es').includes(term)));$('#agr-count').textContent=filtered.length+' resultado'+(filtered.length===1?'':'s');$('#agreements-list').innerHTML=filtered.length?filtered.map(r=>`<article class="record panel"><div class="record-main"><div class="record-titleline"><h3>${escapeHtml(r.title)}</h3>${pill(r.kind||'Nota','purple')}</div><p>${escapeHtml(safeShort(r.description)||'Sin detalle adicional.')}</p><div class="record-meta"><span>${icon('calendar')}${when(r.date)}</span><span>Responsable: ${escapeHtml(r.owner||'Por definir')}</span></div>${r.nextAction?`<p style="margin-bottom:0"><b>Próximo paso:</b> ${escapeHtml(safeShort(r.nextAction,180))}</p>`:''}</div>${recordActions('agreements',r)}</article>`).join(''):empty('notes',data.agreements.length?'Sin coincidencias':'Sin acuerdos registrados','Anota decisiones y compromisos de reuniones para evitar confusiones futuras.',data.agreements.length?'':'acuerdos')}
 function renderAll(){renderDashboard();renderRequests();renderReviews();renderAgreements()}
 function fillProject(){const f=$('#project-form');Object.keys(DEFAULT_PROJECT).forEach(k=>{if(f.elements[k])f.elements[k].value=data.project[k]||''})}
@@ -250,6 +273,21 @@ function openEntry(kind,recordId='',preset={}){
  $('#dialog-title').textContent=(qaNew?'Nueva ':!ProjectFlow.canEdit()?'Detalle de ':record?'Editar ':'Nueva ')+names[kind];
  $('#dialog-subtitle').textContent=qaNew?'Envía una idea, solicitud o reporte de error. Un PM o admin gestionará su estado.':kind==='requests'?'Organiza los detalles y el estado de tu tarea.':kind==='reviews'?'Documenta la validación de un avance o entrega.':'Guarda lo decidido en una reunión o conversación.';
  $('#entry-fields').innerHTML=entryFields(kind,record||preset);
+ if(kind==='requests'||kind==='reviews'){
+  const role=record?requesterRole(record):(ProjectFlowRoles.labels[ProjectFlow.project().role]||'Cargo no registrado');
+  $('#entry-fields').insertAdjacentHTML('afterbegin',`<div class="form-group full creator-role"><span>Rango de quien crea el registro</span><strong id="entry-creator-role">${escapeHtml(role)}</strong><small>${record?(ProjectFlowRoles.labels[record.requestedRole]?'Rango guardado al crear; no cambia al editar.':'Este registro no guardó el rango del creador.'):'Se obtiene automáticamente de tu cuenta; no necesitas elegirlo.'}</small></div>`);
+ }
+ if(kind==='requests'){
+  if(ProjectFlow.canEdit()){
+   $('#f-requestedBy').closest('.form-group').insertAdjacentHTML('afterend',`<div class="form-group full"><label for="f-assigneeId">Responsable de realizar la solicitud</label><select id="f-assigneeId" name="assigneeId"><option value="">Sin asignar</option></select><small id="assignee-status" role="status">Cargando participantes…</small><button type="button" id="assignee-retry" class="btn small" hidden>Reintentar carga</button></div>`);
+   const select=$('#f-assigneeId');
+   if(record?.assigneeId){select.add(new Option(assigneeName(record),record.assigneeId));select.value=record.assigneeId}
+   const entry=editing;
+   $('#assignee-retry').addEventListener('click',()=>loadAssignees(entry,record));
+   loadAssignees(entry,record);
+  }else $('#f-requestedBy').closest('.form-group').insertAdjacentHTML('afterend',`<div class="form-group full"><span>Responsable de realizar la solicitud</span><strong>${escapeHtml(assigneeName(record||{}))}</strong>${qaNew?'<small>Un PM menor, PM o Admin asignará a la persona responsable.</small>':''}</div>`);
+ }
+
  $('#entry-form').dataset.pfSubmitForm=String(qaNew);
  if(qaNew)for(const name of ['createdDate','status','decision'])$('#f-'+name)?.closest('.form-group').remove();
  $('#entry-submit').hidden=!ProjectFlow.canEdit()&&!qaNew;
@@ -258,6 +296,21 @@ function openEntry(kind,recordId='',preset={}){
  ProjectFlow.applyAccess($('#entry-form'));
  if(!ProjectFlow.canEdit()&&!qaNew)$('#dialog-subtitle').textContent='Solo lectura';
  const dialog=$('#edit-dialog');if(!dialog.open)dialog.showModal();$('#entry-form [name="title"]')?.focus();
+}
+async function loadAssignees(entry,record){
+ const select=$('#f-assigneeId');select.dataset.pfUnavailable='true';select.disabled=true;$('#assignee-retry').hidden=true;
+ try{
+  const people=await ProjectFlow.projectRpc('projectflow_list_assignees',{p_project_id:ProjectFlow.project().id});
+  if(editing!==entry)return;
+  const selected=select.value;select.replaceChildren(new Option('Sin asignar',''));
+  for(const person of people){const option=new Option(`${person.email} · ${ProjectFlowRoles.labels[person.role]||person.role}`,person.id);option.dataset.name=person.name;select.add(option)}
+  if(selected&&!people.some(p=>p.id===selected)){const option=new Option(`${assigneeName(record||{})} (sin participación activa)`,selected);option.dataset.name=record?.assigneeName||'';select.add(option)}
+  select.value=selected;delete select.dataset.pfUnavailable;select.disabled=!ProjectFlow.canEdit();$('#assignee-status').textContent='Elige quién realizará el trabajo. El solicitante se registra por separado.';
+ }catch(error){
+  if(editing!==entry)return;
+  $('#assignee-status').textContent=error.code==='PGRST202'?'La asignación requiere actualizar la aplicación en Supabase. Puedes conservar el responsable actual o guardar sin asignar.':'No se pudieron cargar los participantes. Puedes conservar el responsable actual o reintentar.';
+  $('#assignee-retry').hidden=false;
+ }
 }
 async function sendQARequest(){
  if(!ProjectFlow.canSubmit()||editing?.kind!=='requests'||editing.recordId)return;
@@ -282,7 +335,7 @@ async function saveEntry(e){
  const obj=before?{...before}:{id:id(),createdAt:new Date().toISOString()};
  if(!before&&(kind==='requests'||kind==='reviews'))obj.requestedRole=ProjectFlow.project().role;
  for(const [k,v] of new FormData(form).entries())obj[k]=String(v).trim();
- if(kind==='requests')obj.reviewRequired=$('#f-reviewRequired').checked;
+ if(kind==='requests'){obj.reviewRequired=$('#f-reviewRequired').checked;const option=$('#f-assigneeId')?.selectedOptions[0];if(option&&!$('#f-assigneeId').disabled){obj.assigneeId=option.value;obj.assigneeName=option.dataset.name||''}}
  obj.updatedAt=new Date().toISOString();
  if(!obj.title){toast('Ingresa un título.',true);return}
  if((kind==='requests'&&!obj.detail)||(kind==='reviews'&&!obj.criteria)||(kind==='agreements'&&!obj.description)){toast('Completa la descripción requerida.',true);return}
@@ -315,7 +368,7 @@ function backup(){
  download(JSON.stringify(out,null,2),filename,'application/json;charset=utf-8');toast('Respaldo del sitio completo descargado')}
 
 function csvTextCell(value){return `"${String(value??'').replace(/"/g,'""')}"`}
-function exportRequests(){let cols=[['Título','title'],['Tipo','category'],['Prioridad','priority'],['Estado','status'],['Descripción','detail'],['Motivo','benefit'],['Módulo','module'],['Solicitado por','requestedBy'],['Fecha de solicitud','createdDate'],['Fecha objetivo','dueDate'],['Decisión','decision'],['Revisión requerida','reviewRequired']];let rows=[cols.map(x=>x[0]),...data.requests.map(r=>cols.map(([label,key])=>key==='reviewRequired'?(r.reviewRequired?'Sí':'No'):r[key]??''))];download('\ufeff'+rows.map(row=>row.map(csvTextCell).join(';')).join('\r\n'),`tareas_proyecto_${today()}.csv`,'text/csv;charset=utf-8');toast('Solicitudes exportadas a CSV')}
+function exportRequests(){let cols=[['Título','title'],['Tipo','category'],['Prioridad','priority'],['Estado','status'],['Descripción','detail'],['Motivo','benefit'],['Módulo','module'],['Solicitado por','requestedBy'],['Rango del creador','requestedRole'],['Responsable','assigneeName'],['Fecha de solicitud','createdDate'],['Fecha objetivo','dueDate'],['Decisión','decision'],['Revisión requerida','reviewRequired']];let rows=[cols.map(x=>x[0]),...data.requests.map(r=>cols.map(([label,key])=>key==='reviewRequired'?(r.reviewRequired?'Sí':'No'):r[key]??''))];download('\ufeff'+rows.map(row=>row.map(csvTextCell).join(';')).join('\r\n'),`tareas_proyecto_${today()}.csv`,'text/csv;charset=utf-8');toast('Solicitudes exportadas a CSV')}
 async function importBackup(file){
  if(!file||saving||!ProjectFlow.canEdit())return;
  if(file.size>10*1024*1024){toast('El archivo supera el máximo de 10 MB',true);return}
@@ -338,7 +391,7 @@ async function importBackup(file){
    updates['equipo14.hitos']=clean;
   }
   if(await save(updates)){
-   data=next;ProjectFlow.clean('draft:project');fillProject();renderAll();go('resumen');toast('Respaldo importado en el espacio compartido');
+   load();ProjectFlow.clean('draft:project');fillProject();renderAll();go('resumen');toast('Respaldo importado en el espacio compartido');
   }
  }catch(e){toast('No se pudo importar: '+(e.message||'JSON inválido'),true)}
  finally{$('#backup-import').value=''}

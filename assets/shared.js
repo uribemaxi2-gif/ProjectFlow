@@ -60,7 +60,7 @@
     document.documentElement.classList.toggle('pf-nosubmit', !canSubmit());
     root.querySelectorAll('[data-pf-field], [data-pf-form] input, [data-pf-form] textarea, [data-pf-form] select').forEach(field => {
       const allowed = canEdit() || (canSubmit() && !!field.closest('[data-pf-submit-form="true"]'));
-      if (field.matches('select, [type=checkbox], [type=file], [type=radio]')) field.disabled = !allowed;
+      if (field.matches('select, [type=checkbox], [type=file], [type=radio]')) field.disabled = !allowed || field.dataset.pfUnavailable === 'true';
       else field.readOnly = !allowed;
       field.setAttribute('aria-readonly', String(!allowed));
     });
@@ -77,6 +77,7 @@
     });
   }
   function errorText(error) {
+    if (error?.code === '22023' && typeof error.message === 'string') return error.message;
     if (error?.code === '40001') return 'Otra persona guardó cambios. Conserva lo que escribiste y pulsa Actualizar antes de volver a guardar.';
     if (error?.code === '42501' || error?.status === 401 || error?.status === 403) return 'Tu cuenta no tiene permiso para editar. Pulsa Reintentar para volver a consultar.';
     return 'No se pudo conectar o guardar. Comprueba tu conexión y vuelve a intentarlo. Tus cambios todavía no están compartidos.';
@@ -170,12 +171,12 @@
         const updates = Object.entries(snapshot).map(([key, value]) => ({
           key, expected: Object.hasOwn(cache, key) ? copy(cache[key]) : null, value
         }));
-        const { error } = await client.rpc(multi ? 'projectflow_save_project' : 'projectflow_save', multi ? { p_project_id: projectId, p_updates: updates } : { p_updates: updates });
+        const { data: savedState, error } = await client.rpc(multi ? 'projectflow_save_project' : 'projectflow_save', multi ? { p_project_id: projectId, p_updates: updates } : { p_updates: updates });
         if (error) throw error;
         // Only advance baselines for the sections we actually wrote. Advancing
         // another section could hide changes that its visible form never saw.
         for (const [key, value] of Object.entries(snapshot)) {
-          cache[key] = copy(value);
+          cache[key] = copy(savedState?.data && Object.hasOwn(savedState.data, key) ? savedState.data[key] : value);
           if (dirty.get(key) === versions.get(key)) clean(key);
         }
         document.dispatchEvent(new Event('projectflow:saved'));

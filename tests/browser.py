@@ -51,6 +51,7 @@ class Backend:
         self.fail_after_request = False
         self.password_updates = []
         self.fail_password_update = False
+        self.fail_assignees = False
 
     @staticmethod
     def normalized_role(role):
@@ -200,6 +201,16 @@ class Backend:
         if name in ('projectflow_get_state', 'projectflow_get_project') and (self.public or email in roles):
             respond(200, state())
             return
+        if name == 'projectflow_list_assignees':
+            if self.fail_assignees:
+                respond(503, {'code':'unavailable','message':'Temporary failure'})
+                return
+            if role not in ('pm_junior','pm','admin'):
+                respond(403, {'code':'42501','message':'No puedes asignar responsables.'})
+                return
+            candidates = roles | ({e:'admin' for e in self.global_admins} if self.global_scope else {})
+            respond(200, [{'id':e,'email':e,'name':e.split('@')[0],'role':self.normalized_role(r)} for e,r in candidates.items() if self.normalized_role(r) in ('qa','pm_junior','pm','admin')])
+            return
         if name == 'projectflow_list_projects' and email:
             projects = [(self.default_id, self.data, self.roles)] + [(id, p['data'], p['roles']) for id, p in self.projects.items()]
             respond(200, [{'id': id, 'name': d.get(PROJECT, {}).get('project', {}).get('name', 'Mi proyecto')} for id, d, r in projects if email in r or (self.global_scope and email in self.global_admins)])
@@ -268,7 +279,15 @@ class Backend:
             respond(409, {'code': '40001', 'message': 'Concurrent update'})
             return
         for item in updates:
-            data[item['key']] = copy.deepcopy(item['value'])
+            value = copy.deepcopy(item['value'])
+            if item['key'] == PROJECT:
+                previous = {r.get('id'):r for r in data.get(PROJECT,{}).get('requests',[])}
+                for record in value.get('requests',[]):
+                    if 'assigneeId' in record:
+                        prior = previous.get(record.get('id'),{})
+                        assigned = record['assigneeId']
+                        record['assigneeName'] = (prior.get('assigneeName','') if assigned and assigned == prior.get('assigneeId') else assigned.split('@')[0])
+            data[item['key']] = value
         self.saved += 1
         respond(200, state())
 
@@ -457,6 +476,73 @@ class SharedProjectTests(unittest.TestCase):
         expect(reader.locator('#recent-reviews')).to_contain_text('Comprobar las fechas de entrega.')
         expect(reader.get_by_role('button', name='+ Nueva solicitud', exact=True)).to_be_hidden()
         expect(reader.get_by_role('button', name='+ Nueva revisión', exact=True)).to_be_hidden()
+
+    def test_request_creator_role_assignment_and_layout_survive_edit_and_reload(self):
+        self.enable_roles(); self.backend.global_scope = True
+        admin = self.page(); self.login(admin, path='proyecto.html')
+        admin.get_by_role('button', name='+ Nueva solicitud', exact=True).click()
+        expect(admin.locator('#entry-creator-role')).to_have_text('Admin global')
+        admin.locator('#f-title').fill('Revisar las fechas de entrega')
+        admin.locator('#f-detail').fill('Comprobar el calendario y corregir las fechas de todas las actividades.')
+        admin.locator('#f-requestedBy').fill('Maxi')
+        expect(admin.locator('#f-assigneeId')).to_be_enabled()
+        admin.locator('#f-assigneeId').select_option('pm_junior@example.test')
+        admin.locator('#entry-submit').click()
+        expect(admin.locator('#edit-dialog')).to_be_hidden()
+        self.assertEqual(self.backend.data[PROJECT]['requests'][0]['requestedRole'], 'admin')
+        admin.reload()
+        admin.locator('.side-link[data-page="solicitudes"]').click()
+        row = admin.locator('#requests-list .record')
+        expect(row.locator('.record-badges')).to_contain_text('Admin global')
+        expect(row.locator('.record-badges')).to_contain_text('Pendiente')
+        expect(row.locator('.record-assignee')).to_have_text('Responsable: pm_junior')
+        expect(row.locator('.record-meta')).to_contain_text('Solicitante: Maxi')
+        self.assertTrue(row.evaluate('(el)=>el.querySelector(".record-actions").getBoundingClientRect().top >= el.querySelector(".record-main").getBoundingClientRect().bottom'))
+        editor = self.page(); self.login(editor, 'pm_junior@example.test', 'proyecto.html')
+        editor.locator('.side-link[data-page="solicitudes"]').click()
+        editor.locator('#requests-list [data-edit-kind]').click()
+        expect(editor.locator('#entry-creator-role')).to_have_text('Admin global')
+        expect(editor.locator('#f-assigneeId')).to_be_enabled()
+        editor.locator('#f-assigneeId').select_option('qa@example.test')
+        editor.locator('#f-assigneeId').evaluate("el=>el.selectedOptions[0].dataset.name='Nombre local incorrecto'")
+        editor.locator('#entry-submit').click()
+        expect(editor.locator('#edit-dialog')).to_be_hidden()
+        editor.locator('#requests-list [data-edit-kind]').click()
+        editor.locator('#f-detail').fill('Segunda edición consecutiva, sin conflicto.')
+        editor.locator('#entry-submit').click()
+        expect(editor.locator('#edit-dialog')).to_be_hidden()
+        viewer = self.page(mobile=True); viewer.goto(self.base+'/proyecto.html')
+        self.set_font_level(viewer,7); self.close_settings(viewer)
+        if viewer.locator('#pf-menu-toggle').get_attribute('aria-expanded') == 'false': viewer.locator('#pf-menu-toggle').click()
+        viewer.locator('.side-link[data-page="solicitudes"]').click()
+        expect(viewer.locator('#requests-list .record-badges')).to_contain_text('Admin global')
+        expect(viewer.locator('#requests-list .record-assignee')).to_have_text('Responsable: qa')
+        self.assertTrue(viewer.evaluate('document.documentElement.scrollWidth <= innerWidth'))
+        viewer.locator('#requests-list [data-view-kind]').click()
+        expect(viewer.locator('#entry-creator-role')).to_have_text('Admin global')
+        expect(viewer.locator('#f-assigneeId')).to_have_count(0)
+        expect(viewer.locator('#entry-fields')).to_contain_text('Responsable de realizar la solicitud')
+
+    def test_legacy_role_stays_unknown_and_assignment_load_failure_preserves_record(self):
+        self.backend.data[PROJECT]={'schema':1,'project':{},'requests':[{'id':'old','title':'Antigua','detail':'Sin metadatos históricos','status':'Pendiente','assigneeId':'responsible@example.test','assigneeName':'responsible'}],'reviews':[],'agreements':[],'activity':[]}
+        self.backend.fail_assignees = True
+        page=self.page(); self.login(page,path='proyecto.html')
+        page.locator('.side-link[data-page="solicitudes"]').click()
+        page.locator('#requests-list [data-edit-kind]').click()
+        expect(page.locator('#entry-creator-role')).to_have_text('Cargo no registrado')
+        expect(page.locator('#assignee-retry')).to_be_visible()
+        expect(page.locator('#f-assigneeId')).to_be_disabled()
+        page.locator('#f-detail').fill('Conservar el autor desconocido y el responsable.')
+        page.locator('#entry-submit').click()
+        expect(page.locator('#edit-dialog')).to_be_hidden()
+        self.assertNotIn('requestedRole',self.backend.data[PROJECT]['requests'][0])
+        self.assertEqual(self.backend.data[PROJECT]['requests'][0]['assigneeName'],'responsible')
+        page.locator('#requests-list [data-edit-kind]').click()
+        expect(page.locator('#assignee-retry')).to_be_visible()
+        self.backend.fail_assignees = False
+        page.locator('#assignee-retry').click()
+        expect(page.locator('#f-assigneeId')).to_be_enabled()
+        expect(page.locator('#f-assigneeId')).to_have_value('responsible@example.test')
 
     def test_backup_import_restores_numeric_team_keys_for_everyone(self):
         page = self.page()
@@ -1117,6 +1203,8 @@ class SharedProjectTests(unittest.TestCase):
         expect(page.locator('#pf-new-project')).to_be_hidden()
         expect(page.locator('#pf-project-access')).to_be_hidden()
         page.get_by_role('button', name='+ Nueva solicitud', exact=True).click()
+        expect(page.locator('#entry-creator-role')).to_have_text('Consultor / QA')
+        expect(page.locator('#f-assigneeId')).to_have_count(0)
         expect(page.locator('#f-status')).to_have_count(0)
         expect(page.locator('#f-decision')).to_have_count(0)
         expect(page.locator('#delete-entry')).to_be_hidden()

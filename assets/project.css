@@ -1,0 +1,29 @@
+/* Solicitudes y revisiones: presentación independiente de la lógica de datos. */
+.record { flex-direction: column; gap: 20px; padding: 24px; }
+.record-main { width: 100%; }
+.record-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 16px 24px; }
+.record-header h3 { margin: 0; font-size: 1.05rem; line-height: 1.5; overflow-wrap: anywhere; }
+.record-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; max-width: 26rem; }
+.record-badges .pill { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.record-status { gap: 12px; margin: 18px 0; }
+.record .record-meta { gap: 14px 24px; margin-top: 18px; }
+.record .record-meta span { overflow-wrap: anywhere; min-width: 0; }
+.record-actions { width: 100%; border-top: 1px solid var(--line); padding-top: 16px; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+.record-actions .btn { min-height: 44px; }
+.record-assignee { margin: 14px 0; color: #4e5b70; overflow-wrap: anywhere; }
+.toolbar { padding: 20px; gap: 18px; }
+.toolbar select { min-height: 44px; }
+.creator-role { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #f8f9fd; }
+.creator-role > span { font-weight: 700; color: #4e5b70; }
+.creator-role strong { color: var(--accent); }
+#assignee-retry { align-self: flex-start; }
+.item-copy .record-header { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.item-copy .record-header .record-badges { max-width: none; }
+@media (max-width: 48rem) {
+  .record { padding: 20px 16px; }
+  .record-header { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .record-badges { max-width: none; }
+  .record-actions .btn { flex: 1 1 10rem; }
+  .toolbar select, .toolbar .search-wrap, .toolbar .count-hint { flex: 1 1 100%; width: 100%; }
+  .toolbar .count-hint { margin-left: 0; }
+}
