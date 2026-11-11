@@ -216,3 +216,20 @@ html[data-theme=dark] :is(.item-row,.footer,.work-row) { border-color: #444444; 
 html[data-theme=dark] #pf-settings #pf-email { color: #c8c8c8; }
 html[data-theme=dark] #pf-settings #pf-logout { color: #ffb5c3; }
 html[data-theme=dark] #pf-profile-form input[readonly] { background: transparent; border-color: transparent; }
+
+/* Keep form fields dark even when page-specific or readonly styles apply. */
+html[data-theme="dark"] body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html[data-theme="dark"] body textarea,
+html[data-theme="dark"] body select {
+  background-color: #292929 !important;
+  color: #ececec !important;
+  border-color: #626262 !important;
+  color-scheme: dark;
+}
+html[data-theme="dark"] body input::placeholder,
+html[data-theme="dark"] body textarea::placeholder { color: #b7b7b7 !important; opacity: 1; }
+html[data-theme="dark"] body input:autofill {
+  box-shadow: 0 0 0 1000px #292929 inset !important;
+  -webkit-text-fill-color: #ececec !important;
+  caret-color: #ececec;
+}
