@@ -1,6 +1,6 @@
 # ProjectFlow
 
-Varios proyectos personales, cada uno con agenda, fechas de entrega, semanas de
+Varios proyectos compartidos, cada uno con agenda, fechas de entrega, semanas de
 trabajo, ficha y registros independientes. Un selector cambia entre los proyectos
 a los que tienes acceso con tu cuenta; cada proyecto tiene su propio enlace de lectura.
 
@@ -35,7 +35,7 @@ se guarda en este navegador; no modifica los datos compartidos ni las preferenci
 de otras personas. El antiguo **Texto grande** se conserva como nivel 5. También
 se respeta el zoom y el tamaño base que la persona configure en su navegador.
 
-El resumen de **Mi proyecto** permite crear solicitudes y revisiones directamente.
+El resumen de **Proyecto** permite crear solicitudes y revisiones directamente.
 Las tarjetas muestran título, rol de quien creó el registro, descripción y urgencia.
 Las solicitudes conservan su campo Prioridad y las revisiones incluyen Urgencia.
 El formulario muestra el rango del creador como dato automático, también para Admin.
@@ -72,10 +72,45 @@ el alias en la invitación o en Ajustes usa directamente Supabase Auth.
 Ejecuta **todo** [supabase/setup.sql](supabase/setup.sql) en el SQL Editor de Supabase.
 Sirve para instalaciones nuevas y actualiza las versiones de un único proyecto,
 incluida la versión privada. Conserva el proyecto original y sus autorizaciones.
-No hace falta ejecutar primero `public-read.sql`; ese archivo corresponde a la
-actualización anterior de lectura pública.
+Para una instalación nueva, crea la primera cuenta en **Supabase → Authentication →
+Users → Add user → Create new user**, activa **Auto Confirm User** y autorízala en
+SQL Editor:
 
-[Guía de uso, permisos y actualización](SETUP-COMPARTIDO.md).
+```sql
+select public.projectflow_authorize('mi-correo@ejemplo.com', 'leader');
+```
+
+`config.js` contiene solo la URL y la clave pública Publishable. Nunca pongas ahí
+contraseñas, claves secretas ni `service_role`.
+
+## Proyectos, semanas y respaldos
+
+En **Ajustes → Datos → + Nuevo proyecto** indica el nombre, fechas opcionales y
+semanas iniciales (1–104). **Cambiar de proyecto** abre la lista de proyectos a los
+que tienes acceso. Cada uno mantiene su propia agenda, ficha y registros.
+
+En **Agenda**, cada actividad tiene fecha, estado y una semana opcional. Se admiten
+hasta 500 actividades por proyecto. **Plan semanal** permite añadir o quitar
+semanas, cambiar fechas y objetivos y marcar semanas de reserva, que no cuentan en
+el progreso. Eliminar una semana conserva sus tareas y fechas, dejándolas sin semana.
+Las fechas de la ficha, semanas y tareas son independientes: no se reprograman solas.
+
+**Ajustes → Datos → Copiar enlace de lectura** comparte solo el proyecto seleccionado.
+Cualquier persona con ese enlace puede leerlo sin cuenta. **Usuarios** administra
+las invitaciones y permisos según el rol; autorizar un proyecto no autoriza los demás,
+salvo el acceso global de Admin.
+
+La agenda y el plan guardan automáticamente; ficha y registros usan sus botones.
+Espera la confirmación de guardado. La lectura se actualiza cada 30 segundos con la
+página visible. Los editores reciben un aviso para recargar; si dos personas cambian
+la misma sección, se rechaza el guardado obsoleto para evitar sobrescrituras.
+
+Los respaldos JSON incluyen agenda, semanas, ficha y registros del proyecto seleccionado.
+Importarlos reemplaza esos datos, sin modificar otros proyectos ni sus permisos.
+Descarga una copia antes de importar. Los respaldos antiguos siguen siendo compatibles;
+las asignaciones anteriores permanecen en **Agenda → Datos conservados del proyecto anterior**.
+Para rescatar información local antigua, usa **Ajustes → Datos → Descargar datos anteriores**
+si aparece y luego importa el archivo en el proyecto correspondiente.
 
 Para activar el envío, sigue [Invitaciones por correo](INVITACIONES.md):
 requiere actualizar el SQL y configurar el correo SMTP y las redirecciones de
@@ -95,6 +130,10 @@ Sitio estático sin compilación. El SDK de Supabase está incluido en `assets/v
 Las pruebas SQL usan PostgreSQL mediante PGlite. Las de navegador usan Python,
 Playwright y Chromium en `/usr/bin/chromium`, con una API de Supabase simulada.
 No escriben en Supabase real ni envían correos.
+
+GitHub Pages publica únicamente las cuatro páginas HTML, `config.js` y `assets/`.
+La documentación, SQL, pruebas y herramientas permanecen en GitHub, fuera del sitio
+publicado. No hay compilación: el workflow prepara una carpeta temporal de publicación.
 
 Para recuperar la contraseña, abre el inicio de sesión, escribe el correo y pulsa
 **¿Has olvidado tu contraseña?**. El correo de Supabase devuelve a `index.html`

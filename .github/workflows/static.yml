@@ -33,11 +33,15 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Prepare site
+        run: |
+          mkdir -p "$RUNNER_TEMP/projectflow-site"
+          cp index.html cronograma.html proyecto.html invitacion.html config.js "$RUNNER_TEMP/projectflow-site/"
+          cp -R assets "$RUNNER_TEMP/projectflow-site/assets"
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
-          path: '.'
+          path: ${{ runner.temp }}/projectflow-site
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
