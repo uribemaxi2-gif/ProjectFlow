@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Espacio personal de tareas, revisiones, acuerdos y notas, con consulta por enlace y edición autorizada.">
-<title>Mi proyecto | ProjectFlow</title>
+<meta name="description" content="Gestión de tareas, revisiones, acuerdos y notas, con consulta por enlace y edición autorizada.">
+<title>Proyecto | ProjectFlow</title>
 <style>
 :root{--navy:#151c32;--navy2:#242e4e;--ink:#172033;--muted:#69768b;--canvas:#f5f7fb;--line:#e5e9f1;--white:#fff;--accent:#5b5df0;--accent-dark:#4b4bcf;--accent-weak:#eeedff;--green:#178b75;--green-bg:#def7ee;--blue:#377bd8;--blue-bg:#e5f0ff;--orange:#c7782d;--orange-bg:#fff1df;--purple:#8557bb;--purple-bg:#f4eafd;--red:#c94a57;--red-bg:#fff0f1;--shadow:0 10px 38px rgba(27,40,71,.065)}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--canvas);color:var(--ink);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;line-height:1.5}button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}a{text-decoration:none;color:inherit}input,select,textarea{color:var(--ink)}:focus-visible{outline:3px solid #a6a4ff!important;outline-offset:2px}svg.icon{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}svg.icon.sm{width:15px;height:15px}svg.icon.lg{width:23px;height:23px}
@@ -76,9 +76,9 @@ dialog{border:0;border-radius:20px;padding:0;width:min(700px,calc(100% - 28px));
   <nav aria-label="Páginas del proyecto">
    <p class="side-label">Espacio de trabajo</p>
    <div class="side-nav">
-    <a class="side-link" href="index.html" aria-current="false"><span class="side-icon">▦</span> Mi agenda</a>
+    <a class="side-link" href="index.html" aria-current="false"><span class="side-icon">▦</span> Agenda</a>
     <a class="side-link" href="cronograma.html" aria-current="false"><span class="side-icon">◷</span> Plan semanal</a>
-    <a class="side-link active" href="proyecto.html" aria-current="page"><span class="side-icon">▤</span> Mi proyecto</a>
+    <a class="side-link active" href="proyecto.html" aria-current="page"><span class="side-icon">▤</span> Proyecto</a>
    </div>
   </nav>
   <nav aria-label="Secciones de datos del proyecto" class="subnav-wrap">
@@ -91,14 +91,14 @@ dialog{border:0;border-radius:20px;padding:0;width:min(700px,calc(100% - 28px));
     <button type="button" class="side-link subsection" data-page="proyecto"><svg class="icon"><use href="#ico-settings"/></svg> Ficha del proyecto</button>
    </div>
   </nav>
-  <div class="side-note"><div class="side-note-tag"><span class="tiny-dot"></span> Guardado compartido</div><strong>A tu ritmo</strong><p>Organiza tus actividades por fecha, sigue el plan semanal y conserva tus notas en un mismo lugar.</p></div>
-  <div class="side-footer">Mi espacio · Agenda y seguimiento</div>
+  <div class="side-note"><div class="side-note-tag"><span class="tiny-dot"></span> Guardado compartido</div><strong>Seguimiento del proyecto</strong><p>Consulta las actividades, el plan semanal y las notas del proyecto en un mismo lugar.</p></div>
+  <div class="side-footer">Agenda y seguimiento</div>
  </aside>
  <main class="main">
-  <header class="topbar"><div class="crumb">Plan del proyecto &nbsp; / &nbsp; Mi proyecto &nbsp; / &nbsp; <b id="breadcrumb">Resumen</b></div><div class="top-right"><span class="top-chip"><span class="tiny-dot"></span><span id="sync-label">Guardado compartido</span></span><span class="avatar-mark">Yo</span></div></header>
+  <header class="topbar"><div class="crumb">Plan del proyecto &nbsp; / &nbsp; Proyecto &nbsp; / &nbsp; <b id="breadcrumb">Resumen</b></div><div class="top-right"><span class="top-chip"><span class="tiny-dot"></span><span id="sync-label">Guardado compartido</span></span></div></header>
 
   <section id="page-resumen" class="view active" aria-label="Resumen general">
-   <div class="hero"><span class="eyebrow">03 / Mi proyecto</span><h1 id="hero-name">Gestión del proyecto</h1><p>Centraliza tus tareas, avances, decisiones y notas. Las personas que autorices también podrán agregar y editar información.</p><div class="hero-actions"><button type="button" class="btn primary" data-pf-submit data-create="solicitudes"><svg class="icon sm"><use href="#ico-plus"/></svg>Nueva tarea</button><button type="button" class="btn ghost-light" data-page="proyecto">Ver ficha del proyecto <svg class="icon sm"><use href="#ico-arrow"/></svg></button></div></div>
+   <div class="hero"><span class="eyebrow">03 / Proyecto</span><h1 id="hero-name">Gestión del proyecto</h1><p>Centraliza las tareas, avances, decisiones y notas. Cada participante puede colaborar según los permisos de su rol.</p><div class="hero-actions"><button type="button" class="btn primary" data-pf-submit data-create="solicitudes"><svg class="icon sm"><use href="#ico-plus"/></svg>Nueva tarea</button><button type="button" class="btn ghost-light" data-page="proyecto">Ver ficha del proyecto <svg class="icon sm"><use href="#ico-arrow"/></svg></button></div></div>
    <div class="stats"><div class="stat"><div class="stat-top"><span class="help-text">Solicitudes registradas</span><span class="symbol"><svg class="icon"><use href="#ico-inbox"/></svg></span></div><span class="stat-number" id="stat-total">0</span><div class="stat-sub">Cambios, ideas e incidencias</div></div><div class="stat"><div class="stat-top"><span class="help-text">Solicitudes pendientes</span><span class="symbol orange"><svg class="icon"><use href="#ico-clock"/></svg></span></div><span class="stat-number" id="stat-pending">0</span><div class="stat-sub">Por analizar o decidir</div></div><div class="stat"><div class="stat-top"><span class="help-text">Revisiones pendientes</span><span class="symbol blue"><svg class="icon"><use href="#ico-clipboard"/></svg></span></div><span class="stat-number" id="stat-reviews">0</span><div class="stat-sub">Pendientes de comprobar</div></div><div class="stat"><div class="stat-top"><span class="help-text">Revisiones aprobadas</span><span class="symbol green"><svg class="icon"><use href="#ico-check"/></svg></span></div><span class="stat-number" id="stat-approved">0</span><div class="stat-sub">Con conformidad registrada</div></div></div>
    <div class="cols-2"><section class="panel"><div class="box-head"><div><h3>Solicitudes recientes</h3><p>Últimos requerimientos y modificaciones registrados.</p></div><button class="text-action" type="button" data-pf-submit data-create="solicitudes">+ Nueva solicitud</button></div><div id="recent-requests" class="stack-list"></div></section><section class="panel"><div class="box-head"><div><h3>Esperando revisión</h3><p>Avances o decisiones que necesitas comprobar.</p></div><button class="text-action" type="button" data-pf-edit data-create="revisiones">+ Nueva revisión</button></div><div id="recent-reviews" class="stack-list"></div></section></div>
    <div class="section-heading"><div><h2>Flujo recomendado de trabajo</h2><p>Para que ninguna petición se pierda y los cambios sean controlados.</p></div><span class="small-label">Ideas → Avances</span></div>
@@ -146,7 +146,7 @@ dialog{border:0;border-radius:20px;padding:0;width:min(700px,calc(100% - 28px));
    <div class="section-heading"><div><h2>Almacenamiento y uso futuro</h2></div></div><div class="notice"><svg class="icon"><use href="#ico-info"/></svg><div><strong>Consulta con enlace y edición autorizada</strong><p>Cualquiera con el enlace puede consultar los registros. Consultor / QA puede enviar solicitudes; PM menor, PM y admin pueden gestionar los datos. Solo el admin administra los roles. La vista de lectura se actualiza automáticamente. Conserva respaldos antes de reemplazar información.</p></div></div>
   </section>
 
-  <footer class="footer"><span>ProjectHub · Mi espacio personal · Consulta con enlace · Guardado compartido</span><button type="button" id="footer-backup">Respaldar información <svg class="icon sm" style="display:inline;vertical-align:middle"><use href="#ico-download"/></svg></button></footer>
+  <footer class="footer"><span>ProjectFlow · Consulta con enlace · Guardado compartido</span><button type="button" id="footer-backup">Respaldar información <svg class="icon sm" style="display:inline;vertical-align:middle"><use href="#ico-download"/></svg></button></footer>
  </main>
 </div>
 
@@ -164,7 +164,7 @@ dialog{border:0;border-radius:20px;padding:0;width:min(700px,calc(100% - 28px));
 (async()=>{'use strict';
 await ProjectFlow.ready();
 const STORAGE_KEY='projecthub.cliente.v1';
-const DEFAULT_PROJECT={name:'Mi proyecto',client:'',startDate:'',targetDate:'',objective:'',scope:'',contacts:'',notes:'',repository:'',demo:''};
+const DEFAULT_PROJECT={name:'Proyecto',client:'',startDate:'',targetDate:'',objective:'',scope:'',contacts:'',notes:'',repository:'',demo:''};
 const $=(sel,root=document)=>root.querySelector(sel), $$=(sel,root=document)=>Array.from(root.querySelectorAll(sel));
 const icon=(name,cls='sm')=>`<svg class="icon ${cls}" aria-hidden="true"><use href="#ico-${name}"/></svg>`;
 const escapeHtml=(value)=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -226,7 +226,7 @@ function renderReviews(){
  $('#reviews-list').innerHTML=filtered.length?filtered.map(r=>`<article class="record panel"><div class="record-main">
  ${recordHeader(r,r.status||'Pendiente de revisión')}<div class="record-status">${urgency(r)}</div>
  <p>${escapeHtml(safeShort(r.criteria)||'Sin criterios de revisión detallados.')}</p>
- <div class="record-meta"><span>${icon('calendar')}Revisar antes de: ${when(r.dueDate)}</span><span>Relacionado: ${escapeHtml(nameForRequest(r.requestId)||'General')}</span><span>Solicitada por: ${escapeHtml(r.requestedBy||'Mi proyecto')}</span></div>
+ <div class="record-meta"><span>${icon('calendar')}Revisar antes de: ${when(r.dueDate)}</span><span>Relacionado: ${escapeHtml(nameForRequest(r.requestId)||'General')}</span><span>Solicitada por: ${escapeHtml(r.requestedBy||'Proyecto')}</span></div>
  ${r.feedback?`<p><b>Observaciones:</b> ${escapeHtml(safeShort(r.feedback,180))}</p>`:''}</div>${recordActions('reviews',r)}</article>`).join(''):empty('clipboard',data.reviews.length?'Sin coincidencias':'Todavía no hay revisiones','Crea una revisión cuando necesites evaluar un avance o una decisión.',data.reviews.length?'':'revisiones');
 }
 function renderAgreements(){let term=$('#agr-search').value.trim().toLocaleLowerCase('es'),kind=$('#agr-filter-kind').value;let filtered=sorted(data.agreements).filter(r=>(!kind||r.kind===kind)&&(!term||[r.title,r.description,r.owner,r.nextAction].join(' ').toLocaleLowerCase('es').includes(term)));$('#agr-count').textContent=filtered.length+' resultado'+(filtered.length===1?'':'s');$('#agreements-list').innerHTML=filtered.length?filtered.map(r=>`<article class="record panel"><div class="record-main"><div class="record-titleline"><h3>${escapeHtml(r.title)}</h3>${pill(r.kind||'Nota','purple')}</div><p>${escapeHtml(safeShort(r.description)||'Sin detalle adicional.')}</p><div class="record-meta"><span>${icon('calendar')}${when(r.date)}</span><span>Responsable: ${escapeHtml(r.owner||'Por definir')}</span></div>${r.nextAction?`<p style="margin-bottom:0"><b>Próximo paso:</b> ${escapeHtml(safeShort(r.nextAction,180))}</p>`:''}</div>${recordActions('agreements',r)}</article>`).join(''):empty('notes',data.agreements.length?'Sin coincidencias':'Sin acuerdos registrados','Anota decisiones y compromisos de reuniones para evitar confusiones futuras.',data.agreements.length?'':'acuerdos')}

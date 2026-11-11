@@ -206,7 +206,7 @@
       anchor.href = url; anchor.download = 'projectflow-datos-anteriores.json';
       document.body.append(anchor); anchor.click(); anchor.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      status('Respaldo descargado. Puedes importarlo desde Mi proyecto → Ficha del proyecto.');
+      status('Respaldo descargado. Puedes importarlo desde Proyecto → Ficha del proyecto.');
     } catch { status('No se pudieron leer los datos anteriores de este navegador.', true); }
   }
   function showProfile(user) {
@@ -214,7 +214,7 @@
     projectInfo.displayName = name;
     if (find('pf-account-heading')) find('pf-account-heading').textContent = name || (user ? 'Elige tu nombre' : 'Tu cuenta');
     const avatar = document.querySelector('.pf-account-avatar');
-    if (avatar) avatar.textContent = name ? name.split(' ').slice(0,2).map(word=>Array.from(word)[0]).join('').toLocaleUpperCase('es') : 'YO';
+    if (avatar) avatar.textContent = name ? name.split(' ').slice(0,2).map(word=>Array.from(word)[0]).join('').toLocaleUpperCase('es') : 'PF';
   }
   function profileForm(user) {
     const form = document.createElement('form'); form.id = 'pf-profile-form';
@@ -266,7 +266,7 @@
     find('pf-logout').hidden = !user;
     find('pf-set-password').hidden = !user;
     if (user) accountPasswordDialog();
-    if (user && !canEdit()) status(canSubmit() ? 'Puedes enviar solicitudes desde Mi proyecto.' : 'Esta cuenta tiene acceso de solo lectura.');
+    if (user && !canEdit()) status(canSubmit() ? 'Puedes enviar solicitudes desde Proyecto.' : 'Esta cuenta tiene acceso de solo lectura.');
     find('pf-open-login').addEventListener('click', () => {
       document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
       document.documentElement.classList.add('pf-locked');
@@ -334,7 +334,7 @@
     if (find('pf-session')) { dirty.clear(); location.reload(); return; }
     cache = copy(state.data);
     projectId = state.project_id || projectId;
-    projectInfo = { id: projectId, name: state.name || cache[KEYS[2]]?.project?.name || 'Mi proyecto',
+    projectInfo = { id: projectId, name: state.name || cache[KEYS[2]]?.project?.name || 'Proyecto',
       role: stateRole(state), rolesVersion: state.roles_version || 0, scopeVersion: state.scope_version || 1, canManage: !!state.can_manage,
       canInvite: state.roles_version ? !!state.can_invite : !!state.can_manage,
       canCreate: !!state.can_create, assigneeNames: state.assignee_names || {}, multi, signedIn: !!session };

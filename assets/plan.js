@@ -39,7 +39,7 @@
       const assigned = tasks.filter(task => task.weekId === week.id);
       find('week-tasks').replaceChildren(...(assigned.length ? assigned.map(task => {
         const li = document.createElement('li'); li.textContent = `${task.done ? '✓ ' : ''}${task.title || 'Sin título'}${task.dueDate ? ' · Entrega: ' + task.dueDate : ''}`; return li;
-      }) : [Object.assign(document.createElement('li'), { textContent: 'Sin tareas asignadas. Elige esta semana en Mi agenda.' })]));
+      }) : [Object.assign(document.createElement('li'), { textContent: 'Sin tareas asignadas. Elige esta semana en Agenda.' })]));
     }
     find('plan-agenda-link').href = ProjectFlow.projectUrl(undefined, 'index.html');
     progress(); ProjectFlow.applyAccess();

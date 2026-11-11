@@ -92,7 +92,7 @@
     const cell = value => '"' + String(value).replace(/"/g, '""') + '"';
     const rows = [['Actividad', 'Fecha prevista', 'Completada'], ...items.map(item => [item.title, item.dueDate, item.done ? 'Sí' : 'No'])];
     const url = URL.createObjectURL(new Blob(['\ufeff' + rows.map(row => row.map(cell).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
-    const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'mi-agenda.csv';
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'agenda.csv';
     document.body.append(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
   document.addEventListener('projectflow:updated', () => { load(); render(); });

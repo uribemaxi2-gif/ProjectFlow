@@ -2,8 +2,8 @@
 <html lang="es" class="pf-locked">
 <head>
  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
- <meta name="description" content="Actividades personales con fechas, plan semanal y seguimiento compartido.">
- <title>Mi agenda — ProjectFlow</title>
+ <meta name="description" content="Actividades del proyecto con fechas, plan semanal y seguimiento compartido.">
+ <title>Agenda — ProjectFlow</title>
  <style>
 :root{--navy:#151c32;--navy2:#242e4e;--ink:#172033;--muted:#66748a;--canvas:#f5f7fb;--line:#e5e9f1;--white:#fff;--accent:#5b5df0;--accent-weak:#eeedff;--green:#178b75;--green-bg:#def7ee;--blue:#377bd8;--blue-bg:#e5f0ff;--orange:#d98236;--orange-bg:#fff1df;--purple:#8557bb;--purple-bg:#f4eafd;--shadow:0 10px 38px rgba(27,40,71,.065)}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:var(--ink);background:var(--canvas);line-height:1.48}button,input{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}a:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid #92a0ff;outline-offset:2px}button:disabled{opacity:.6;cursor:not-allowed}svg{display:block}
@@ -34,30 +34,27 @@
 <noscript>Activa JavaScript para consultar ProjectFlow.</noscript>
 <div class="layout">
  <aside class="sidebar" aria-label="Navegación principal">
-  <div class="logo"><span class="logo-mark">P<span style="font-size:1rem;opacity:.8">·</span></span><div><div class="logo-title">Project<span style="color:#aaaaff">Flow</span></div><span class="logo-caption">Mi espacio personal</span></div></div>
-  <nav aria-label="Páginas del proyecto"><p class="side-label">Mi espacio</p><div class="side-nav">
-   <a class="side-link active" href="index.html" aria-current="page"><span class="side-icon">▦</span> Mi agenda</a>
+  <div class="logo"><span class="logo-mark">P<span style="font-size:1rem;opacity:.8">·</span></span><div><div class="logo-title">Project<span style="color:#aaaaff">Flow</span></div></div></div>
+  <nav aria-label="Páginas del proyecto"><div class="side-nav">
+   <a class="side-link active" href="index.html" aria-current="page"><span class="side-icon">▦</span> Agenda</a>
    <a class="side-link" href="cronograma.html"><span class="side-icon">◷</span> Plan semanal</a>
-   <a class="side-link" href="proyecto.html"><span class="side-icon">▤</span> Mi proyecto</a>
+   <a class="side-link" href="proyecto.html"><span class="side-icon">▤</span> Proyecto</a>
   </div></nav>
-  <div class="side-note"><div class="side-note-tag"><span class="tiny-dot"></span> Actividades y fechas</div><strong>A tu ritmo</strong><p>Define qué quieres hacer y cuándo. Usa el plan semanal para avanzar y la ficha para guardar tus notas.</p></div>
-  <div class="sidebar-footer">Mi espacio · Agenda y seguimiento</div>
  </aside>
  <main class="main">
-  <header class="topbar"><div class="crumb">Mi espacio &nbsp; / &nbsp; <b>Mi agenda</b></div><span class="top-chip">Fechas personales</span></header>
-  <section class="hero"><span class="eyebrow">01 / Mi agenda</span><h1>Tu proyecto, a tu ritmo.</h1><p>Organiza tus actividades por fecha y marca lo que ya terminaste. Tú y las personas que autorices pueden editar; todos pueden consultar el avance con el enlace.</p></section>
+  <section class="hero"><span class="eyebrow">01 / Agenda</span><h1>Agenda del proyecto</h1><p>Consulta las actividades, sus fechas y el avance del proyecto. La edición está disponible según los permisos de cada participante.</p></section>
   <section class="agenda-stats" aria-label="Resumen de actividades">
    <div class="panel"><span>Actividades</span><strong id="agenda-total">0</strong></div>
    <div class="panel"><span>Con fecha</span><strong id="agenda-dated">0</strong></div>
    <div class="panel"><span>Completadas</span><strong id="agenda-done">0</strong></div>
   </section>
   <section class="panel agenda-panel">
-   <div class="section-heading"><div><h2>Mis actividades y fechas</h2><p>Cambia los ejemplos por tus propias actividades. Los cambios se guardan automáticamente.</p></div><div class="actions"><button class="action-btn" type="button" id="export-csv">Exportar CSV</button><button class="action-btn primary" data-pf-edit id="agenda-add" type="button">+ Agregar actividad</button></div></div>
-   <div id="agenda-list" aria-label="Actividades personales"></div>
+   <div class="section-heading"><div><h2>Actividades y fechas</h2><p>Los cambios se guardan automáticamente y se comparten con el equipo.</p></div><div class="actions"><button class="action-btn" type="button" id="export-csv">Exportar CSV</button><button class="action-btn primary" data-pf-edit id="agenda-add" type="button">+ Agregar actividad</button></div></div>
+   <div id="agenda-list" aria-label="Actividades del proyecto"></div>
    <p id="agenda-empty" hidden>No hay actividades registradas.</p>
   </section>
   <details class="panel agenda-legacy" id="previous-assignments" hidden><summary>Datos conservados del proyecto anterior</summary><p>Las asignaciones anteriores siguen guardadas y se incluyen en los respaldos.</p><ul id="previous-assignment-list"></ul></details>
-  <footer class="footer">ProjectFlow · Mi espacio personal · Consulta con enlace y edición autorizada</footer>
+  <footer class="footer">ProjectFlow · Consulta con enlace y edición autorizada</footer>
  </main>
 </div>
 <div role="status" aria-live="polite" id="toast" class="toast"></div>

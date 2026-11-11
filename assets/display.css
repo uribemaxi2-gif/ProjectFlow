@@ -165,3 +165,6 @@ html.pf-menu-open { overflow: hidden; }
   #pf-display, #pf-projects, #pf-menu-dialog { display: none !important; }
   .layout { display: block; }
 }
+
+#pf-menu-toggle, #pf-menu-close { min-width: 44px; min-height: 44px; }
+#pf-menu-toggle svg, #pf-menu-close svg { display: block; flex-shrink: 0; }
