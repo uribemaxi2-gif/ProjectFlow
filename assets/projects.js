@@ -7,15 +7,16 @@
   const canManagePerson = person => info.canManage && (info.scopeVersion < 2 || info.role === 'admin' || lowerRoles.includes(person.role));
   const bar = document.createElement('section');
   bar.id = 'pf-projects'; bar.setAttribute('aria-label', 'Proyecto seleccionado');
-  bar.innerHTML = `<div><label for="pf-project-select">Proyecto</label> <select id="pf-project-select" hidden></select><strong id="pf-project-name"></strong></div>
-    <div class="pf-project-actions"><button id="pf-share-project" type="button">Copiar enlace de lectura</button><button id="pf-new-project" type="button" hidden>+ Nuevo proyecto</button><button id="pf-project-access" type="button" hidden>Quién puede editar</button></div><p id="pf-project-message" role="status"></p>`;
+  bar.innerHTML = `<div><label for="pf-project-select">Proyecto</label> <button type="button" id="pf-switch-project" hidden aria-expanded="false" aria-controls="pf-project-select">Cambiar de proyecto</button><select id="pf-project-select" aria-label="Seleccionar proyecto" hidden></select><strong id="pf-project-name"></strong></div>
+    <div class="pf-project-actions"><button id="pf-share-project" type="button">Copiar enlace de lectura</button><button id="pf-new-project" type="button" hidden>+ Nuevo proyecto</button><button id="pf-project-access" type="button" hidden>Usuarios</button></div><p id="pf-project-message" role="status"></p>`;
   document.getElementById('pf-project-content').append(bar);
   const find = id => document.getElementById(id);
+  find('pf-switch-project').before(find('pf-project-name'));
   const message = text => { find('pf-project-message').textContent = text; };
   updateName();
   find('pf-new-project').hidden = !info.canCreate;
   find('pf-project-access').hidden = !info.canInvite;
-  if (info.rolesVersion) find('pf-project-access').textContent = info.canManage ? 'Roles e invitaciones' : 'Invitar personas';
+  find('pf-project-access').textContent = 'Usuarios';
   if (!info.multi && ProjectFlow.canEdit()) message('La creación de proyectos estará disponible cuando completes la actualización de Supabase.');
   else if (info.scopeVersion < 2 && info.canInvite) message('Para activar Admin global y los nuevos permisos de PM, ejecuta setup.sql en Supabase.');
   if (info.signedIn && info.multi) {
@@ -24,9 +25,14 @@
       if (!projects.some(p => p.id === info.id)) projects.unshift({ id: info.id, name: info.name });
       for (const project of projects) find('pf-project-select').add(new Option(project.name, project.id));
       find('pf-project-select').value = info.id;
-      find('pf-project-select').hidden = false; find('pf-project-name').hidden = true;
+      find('pf-switch-project').hidden = false;
     } catch { message('No se pudo cargar tu lista de proyectos. Recarga para volver a intentarlo.'); }
   }
+  find('pf-switch-project').addEventListener('click', () => {
+    const select = find('pf-project-select'); select.hidden = !select.hidden;
+    find('pf-switch-project').setAttribute('aria-expanded', String(!select.hidden));
+    if (!select.hidden) select.focus();
+  });
   find('pf-project-select').addEventListener('change', () => {
     const next = find('pf-project-select').value;
     if (!ProjectFlow.navigate(ProjectFlow.projectUrl(next))) find('pf-project-select').value = info.id;
@@ -71,13 +77,13 @@
           ...(info.rolesVersion ? { p_source_project_id: info.id } : {}) });
       dialog.close(); message('Proyecto creado. Ya está disponible en tu lista.');
       find('pf-project-select').add(new Option(project.name, project.project_id));
-      find('pf-project-select').hidden = false; find('pf-project-name').hidden = true;
+      find('pf-switch-project').hidden = false;
       ProjectFlow.navigate(ProjectFlow.projectUrl(project.project_id));
     } catch (error) { find('pf-create-error').textContent = error.message; }
     finally { creating = false; form.querySelectorAll('button').forEach(button => button.disabled = false); }
   });
   const access = document.createElement('dialog'); access.id = 'pf-access-dialog';
-  access.innerHTML = `<div class="pf-access-header"><h2 id="pf-access-heading" tabindex="-1">${info.rolesVersion ? info.canManage ? 'Roles e invitaciones' : 'Invitar personas' : 'Quién puede editar este proyecto'}</h2><button type="button" data-close-access aria-label="Cerrar permisos">×</button></div><p>El enlace permite leer sin cuenta. Los roles de proyecto se aplican aquí. Admin global da acceso a todos los proyectos de la web.</p>
+  access.innerHTML = `<div class="pf-access-header"><h2 id="pf-access-heading" tabindex="-1">Usuarios</h2><button type="button" data-close-access aria-label="Cerrar permisos">×</button></div><p>El enlace permite leer sin cuenta. Los roles de proyecto se aplican aquí. Admin global da acceso a todos los proyectos de la web.</p>
     <section id="pf-members-section" ${info.canManage ? '' : 'hidden'}><h3>Personas con acceso</h3><ul id="pf-editor-list"></ul></section>
     <form id="pf-add-editor"><label>Correo de la persona<input name="email" type="email" required maxlength="254" placeholder="persona@ejemplo.com"></label>
     <label ${info.rolesVersion && info.canManage ? '' : 'hidden'}>Rol al aceptar<select name="role" id="pf-invite-role"></select></label>

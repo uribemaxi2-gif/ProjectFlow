@@ -94,6 +94,13 @@ class Backend:
         if path == '/auth/v1/logout':
             respond(200, {})
             return
+        if path == '/auth/v1/recover':
+            if self.fail_email:
+                respond(500, {'code':'unexpected_failure','msg':'Mail unavailable'})
+            else:
+                self.emails.append({'email':body['email'],'redirect':parse_qs(urlparse(request.url).query)['redirect_to'][0],'recovery':True})
+                respond(200,{})
+            return
         if path == '/auth/v1/otp':
             if self.fail_email:
                 respond(400, {'code': 'email_address_not_authorized', 'msg': 'Email sending is not configured'})
@@ -439,17 +446,18 @@ class SharedProjectTests(unittest.TestCase):
         self.open_settings(person)
         person.locator('[data-settings-section=account]').click()
         expect(person.locator('#pf-account-heading')).to_have_text('Elige tu nombre')
+        person.locator('#pf-edit-alias').click()
         person.locator('#pf-display-name').fill('  ')
-        person.locator('#pf-profile-form button').click()
+        person.locator('#pf-save-alias').click()
         expect(person.locator('#pf-profile-message')).to_contain_text('Escribe un nombre')
         person.locator('#pf-display-name').fill('Luna <QA>')
         self.backend.fail_profile_update=True
-        person.locator('#pf-profile-form button').click()
+        person.locator('#pf-save-alias').click()
         expect(person.locator('#pf-profile-message')).to_contain_text('No se pudo guardar')
         person.locator('[data-settings-section=account]').click()
         expect(person.locator('#pf-account-heading')).to_have_text('Elige tu nombre')
         self.backend.fail_profile_update=False
-        person.locator('#pf-profile-form button').click()
+        person.locator('#pf-save-alias').click()
         person.locator('[data-settings-section=account]').click()
         expect(person.locator('#pf-account-heading')).to_have_text('Luna <QA>')
         expect(person.locator('#pf-role')).to_have_text('Consultor / QA')
@@ -512,7 +520,7 @@ class SharedProjectTests(unittest.TestCase):
         expect(first.locator('#agenda-title-1')).to_have_value('Cambio sin guardar')
         self.assertEqual(self.backend.data[TEAM]['schedule'][0]['title'], 'Cambio del responsable')
         first.once('dialog', lambda dialog: dialog.accept())
-        self.settings_click(first, '#pf-refresh')
+        first.reload()
         expect(first.locator('#agenda-title-1')).to_have_value('Cambio del responsable')
 
     def test_project_form_and_request_retry_do_not_duplicate_records(self):
@@ -667,6 +675,7 @@ class SharedProjectTests(unittest.TestCase):
         self.open_settings(page)
         expect(page.locator('[data-settings-section]')).to_have_text(['Cuenta','Apariencia','Avisos','Seguridad','Datos'])
         page.locator('[data-settings-section=account]').click()
+        page.locator('#pf-edit-alias').click()
         page.locator('#pf-display-name').fill('Nombre pendiente')
         expect(page.locator('#pf-email')).to_have_text('leader@example.test')
         page.locator('[data-settings-section=notices]').click()
@@ -687,7 +696,7 @@ class SharedProjectTests(unittest.TestCase):
         page.reload()
         expect(page.locator('[data-theme=dark] button[data-theme=dark]')).to_have_attribute('aria-pressed','true')
         expect(page.locator('#pf-panel-appearance')).to_be_visible()
-        self.assertEqual(page.locator('#pf-settings button[data-theme=light]').evaluate('(el) => getComputedStyle(el).backgroundColor'),'rgb(38, 51, 75)')
+        self.assertEqual(page.locator('#pf-settings button[data-theme=light]').evaluate('(el) => getComputedStyle(el).backgroundColor'),'rgb(44, 44, 44)')
         self.set_font_level(page,7)
         for section in ['account','appearance','notices','security','data']:
             page.locator('[data-settings-section='+section+']').click()
@@ -698,6 +707,37 @@ class SharedProjectTests(unittest.TestCase):
             expect(page.locator('html')).to_have_attribute('data-theme','dark')
             expect(page.locator('#pf-role')).to_have_text('Edición autorizada')
         self.assertEqual(self.backend.saved,0)
+
+    def test_password_recovery_email_callback_and_new_password(self):
+        page=self.page(); page.goto(self.base+'/index.html')
+        self.settings_click(page,'#pf-open-login')
+        page.locator('#pf-email-input').fill('leader@example.test')
+        self.backend.fail_email=True
+        page.locator('#pf-forgot-password').click()
+        expect(page.locator('#pf-message')).to_contain_text('No se pudo enviar')
+        self.backend.fail_email=False
+        page.locator('#pf-forgot-password').click()
+        expect(page.locator('#pf-message')).to_contain_text('Si existe una cuenta')
+        email=self.backend.emails[-1]
+        self.assertTrue(email['recovery'])
+        recipient=self.page(mobile=True)
+        recipient.goto(email['redirect']+'#access_token='+self.backend.jwt('leader@example.test')+'&refresh_token=test-refresh&expires_in=3600&token_type=bearer&type=recovery')
+        expect(recipient.locator('#pf-password-dialog')).to_be_visible()
+        recipient.locator('#pf-new-password').fill('NuevaClave123')
+        recipient.locator('#pf-confirm-password').fill('OtraClave123')
+        recipient.locator('#pf-password-form button[type=submit]').click()
+        expect(recipient.locator('#pf-password-error')).to_contain_text('no coinciden')
+        recipient.locator('#pf-confirm-password').fill('NuevaClave123')
+        recipient.locator('#pf-password-form button[type=submit]').click()
+        expect(recipient.locator('#pf-password-dialog')).to_be_hidden()
+        expect(recipient.locator('#pf-password-feedback')).to_contain_text('Contraseña guardada')
+        other=self.page(); self.login(other,password='NuevaClave123')
+        self.assertEqual(self.backend.roles['leader@example.test'],'leader')
+        self.assertEqual(self.backend.password_updates,['leader@example.test'])
+        expired=self.page(); expired.goto(self.base+'/index.html#error=access_denied&error_code=otp_expired')
+        expect(expired.locator('#pf-message')).to_contain_text('caducó')
+        expect(expired.locator('#pf-password-dialog')).to_have_count(0)
+        self.assertNotIn('access_token',recipient.url)
 
     def test_mobile_login_navigation_and_logout(self):
         page = self.page(mobile=True)
@@ -844,7 +884,7 @@ class SharedProjectTests(unittest.TestCase):
             with self.subTest(level=level):
                 self.set_font_level(page, level)
                 expect(page.locator('#pf-text-description')).to_contain_text(f'Nivel {level} de 7')
-                self.assertEqual(page.locator('.pf-font-preview p').evaluate('(el) => getComputedStyle(el).fontSize'), f'{pixels}px')
+                self.assertEqual(page.locator('#pf-font-help').evaluate('(el) => getComputedStyle(el).fontSize'), f'{pixels}px')
                 self.assertLessEqual(page.evaluate('document.documentElement.scrollWidth'), 390)
                 page.reload()
                 expect(page.locator('#pf-settings')).to_be_visible()
@@ -1031,6 +1071,7 @@ class SharedProjectTests(unittest.TestCase):
         expect(page.locator('#project-delivery')).to_have_value('2027-01-15')
         self.open_settings(page)
         page.locator('[data-settings-section=data]').click()
+        page.locator('#pf-switch-project').click()
         page.locator('#pf-project-select').select_option(first)
         expect(page.locator('.agenda-title input')).to_have_value('Entrega corta')
         expect(page.locator('.agenda-row input[type="date"]')).to_have_value('2026-11-10')
@@ -1072,6 +1113,7 @@ class SharedProjectTests(unittest.TestCase):
         expect(editor.locator('#agenda-add')).to_be_hidden()
         self.open_settings(owner)
         owner.locator('[data-settings-section=data]').click()
+        owner.locator('#pf-switch-project').click()
         owner.locator('#pf-project-select').select_option(first)
         self.settings_click(owner, '#pf-project-access')
         owner.locator('#pf-editor-list button').click()
@@ -1305,6 +1347,7 @@ class SharedProjectTests(unittest.TestCase):
         self.open_settings(page)
         expect(page.locator('#pf-project-select option[value="'+other+'"]')).to_have_count(1)
         page.locator('[data-settings-section=data]').click()
+        page.locator('#pf-switch-project').click()
         page.locator('#pf-project-select').select_option(other)
         expect(page.locator('#pf-role')).to_have_text('Admin global')
         self.settings_click(page, '#pf-project-access')

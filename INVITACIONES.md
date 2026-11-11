@@ -86,7 +86,7 @@ el permiso de edición se valida por separado al aceptar la invitación.
 ## 6. Invitar desde ProjectFlow
 
 1. Entra como admin o PM y selecciona el proyecto.
-2. Abre **⚙ Ajustes → Datos → Roles e invitaciones**.
+2. Abre **⚙ Ajustes → Datos → Usuarios**.
 3. Escribe el correo. El Admin global elige cualquier rol; el PM solo Usuario, Consultor / QA o PM menor. Pulsa **Enviar invitación**.
 4. La persona abre el correo, elige su nombre o alias y crea su contraseña. Si ya conoce una contraseña
    de ProjectFlow, elige **Ya conozco mi contraseña y quiero conservarla** y la

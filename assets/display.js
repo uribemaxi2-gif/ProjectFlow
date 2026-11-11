@@ -42,7 +42,6 @@
       <div class="pf-size-ticks" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span></div>
       <div class="pf-size-ends" aria-hidden="true"><span>Menor</span><span>Mayor</span></div>
       <p id="pf-font-help">El tamaño se aplica a toda la web y se guarda en este navegador.</p>
-      <div class="pf-font-preview" aria-label="Vista previa del tamaño de letra"><span class="pf-settings-kicker">VISTA PREVIA</span><h3>Proyectos y actividades</h3><p>Consulta las actividades, revisa las fechas y sigue el avance del proyecto.</p></div>
       <button type="button" id="pf-font-reset">Restablecer tamaño</button>
     </section>
     <section id="pf-panel-notices" data-settings-panel="notices" class="pf-settings-card" aria-labelledby="pf-notices-heading"><h2 id="pf-notices-heading">Avisos</h2><p class="pf-coming-soon">En preparación</p></section>

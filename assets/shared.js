@@ -11,6 +11,9 @@
   };
   let client, cache = {}, unlocked = false, editor = false, conflict = false, queue = Promise.resolve(), pending = 0;
   let projectId = new URLSearchParams(location.search).get('project'), projectInfo = {}, multi = true;
+  const callback = new URLSearchParams(location.hash.slice(1));
+  let recovering = callback.get('type') === 'recovery';
+  let callbackFailed = callback.has('error');
   const dirty = new Map();
   let generation = 0, completeReady;
   const ready = new Promise(resolve => { completeReady = resolve; });
@@ -22,8 +25,9 @@
       <label for="pf-email-input">Correo</label><input id="pf-email-input" type="email" autocomplete="username" required>
       <label for="pf-password">Contraseña</label><input id="pf-password" type="password" autocomplete="current-password" required>
       <button type="submit" id="pf-enter">Entrar</button>
+      <button type="button" id="pf-forgot-password">¿Has olvidado tu contraseña?</button>
       <button type="button" id="pf-login-link">Recibir enlace por correo</button>
-      <p>Si aún no tienes contraseña o no la recuerdas, recibe un enlace para entrar y definirla en Ajustes.</p>
+      <p>Puedes recuperar tu contraseña o recibir un enlace para entrar por correo.</p>
     </form>
     <p id="pf-message" role="status" aria-live="polite">Cargando datos compartidos…</p>
     <button id="pf-retry" type="button" hidden>Reintentar</button>
@@ -65,7 +69,7 @@
       field.setAttribute('aria-readonly', String(!allowed));
     });
   }
-  function markDirty(key) { if (canEdit() || (canSubmit() && key === 'draft:entry')) { dirty.set(key, ++generation); status('Cambios sin guardar'); } }
+  function markDirty(key) { if (canEdit() || (canSubmit() && key === 'draft:entry') || (projectInfo.signedIn && key === 'draft:alias')) { dirty.set(key, ++generation); status('Cambios sin guardar'); } }
   function clean(key) { dirty.delete(key); }
   function normalizeSchedule(items) {
     if (!Array.isArray(items) || items.length > 500) throw new Error('Agenda no válida.');
@@ -78,7 +82,7 @@
   }
   function errorText(error) {
     if (error?.code === '22023' && typeof error.message === 'string') return error.message;
-    if (error?.code === '40001') return 'Otra persona guardó cambios. Conserva lo que escribiste y pulsa Actualizar antes de volver a guardar.';
+    if (error?.code === '40001') return 'Otra persona guardó cambios. Copia lo que escribiste y recarga la página antes de volver a guardar.';
     if (error?.code === '42501' || error?.status === 401 || error?.status === 403) return 'Tu cuenta no tiene permiso para editar. Pulsa Reintentar para volver a consultar.';
     return 'No se pudo conectar o guardar. Comprueba tu conexión y vuelve a intentarlo. Tus cambios todavía no están compartidos.';
   }
@@ -218,11 +222,20 @@
   }
   function profileForm(user) {
     const form = document.createElement('form'); form.id = 'pf-profile-form';
-    form.innerHTML = `<label for="pf-display-name">Nombre o alias</label><input id="pf-display-name" autocomplete="nickname" maxlength="60" required placeholder="¿Cómo quieres que te llamemos?">
-      <p>Se mostrará en tus proyectos. Para entrar seguirás usando tu correo.</p><button type="submit">Guardar nombre</button><p id="pf-profile-message" role="status"></p>`;
+    form.innerHTML = `<label for="pf-display-name">Nombre o alias</label><input id="pf-display-name" autocomplete="nickname" maxlength="60" required readonly placeholder="¿Cómo quieres que te llamemos?">
+      <p>Se mostrará en tus proyectos. Para entrar seguirás usando tu correo.</p><button type="button" id="pf-edit-alias">Cambiar alias</button><button type="submit" id="pf-save-alias" hidden>Guardar cambios</button><button type="button" id="pf-cancel-alias" hidden>Cancelar</button><p id="pf-profile-message" role="status"></p>`;
     find('pf-account-content').append(form);
     find('pf-display-name').value = ProjectFlowProfile.name(user);
     let saving = false;
+    let savedAlias = find('pf-display-name').value;
+    function editing(value) {
+      find('pf-display-name').readOnly = !value;
+      find('pf-edit-alias').hidden = value; find('pf-save-alias').hidden = !value; find('pf-cancel-alias').hidden = !value;
+      if (value) find('pf-display-name').focus();
+    }
+    find('pf-edit-alias').addEventListener('click', () => { find('pf-profile-message').textContent = ''; editing(true); });
+    find('pf-cancel-alias').addEventListener('click', () => { find('pf-display-name').value = savedAlias; clean('draft:alias'); editing(false); if (!dirty.size) status('Datos compartidos'); });
+    find('pf-display-name').addEventListener('input', () => markDirty('draft:alias'));
     form.addEventListener('submit', async event => {
       event.preventDefault(); if (saving) return;
       const name = ProjectFlowProfile.normalize(find('pf-display-name').value);
@@ -233,7 +246,8 @@
         const { data, error } = await client.auth.updateUser({ data: { display_name: name } });
         if (error) throw error;
         showProfile(data.user); find('pf-display-name').value = ProjectFlowProfile.name(data.user);
-        find('pf-profile-message').textContent = 'Nombre guardado.';
+        savedAlias = find('pf-display-name').value; clean('draft:alias'); editing(false); if (!dirty.size) status('Datos compartidos');
+        find('pf-profile-message').textContent = 'Alias actualizado.';
         document.dispatchEvent(new Event('projectflow:profile-saved'));
       } catch { find('pf-profile-message').textContent = 'No se pudo guardar tu nombre. Conservamos lo escrito para que puedas reintentar.'; }
       finally { saving=false; pending--; form.querySelectorAll('input,button').forEach(el=>el.disabled=false); }
@@ -252,7 +266,6 @@
     bar.id = 'pf-session';
     bar.innerHTML = `<div class="pf-identity"><strong id="pf-role"></strong><span id="pf-email"></span></div>
       <div class="pf-controls">
-      <button type="button" id="pf-refresh">Actualizar</button>
       <button type="button" id="pf-previous" hidden>Descargar datos anteriores</button>
       <button type="button" id="pf-open-login">Entrar a mi cuenta</button>
       <button type="button" id="pf-set-password" hidden>Cambiar contraseña</button>
@@ -280,11 +293,6 @@
       find('pf-retry').hidden = true;
       message('Entra con la cuenta invitada a este proyecto.');
       find('pf-email-input').focus();
-    });
-    find('pf-refresh').addEventListener('click', () => {
-      if (pending) { status('Espera a que termine el guardado antes de actualizar.'); return; }
-      if (dirty.size && !confirm('Hay cambios sin guardar. ¿Descartarlos y cargar los datos compartidos?')) return;
-      dirty.clear(); location.reload();
     });
     find('pf-logout').addEventListener('click', async () => {
       if (pending) { status('Espera a que termine el guardado antes de salir.'); return; }
@@ -353,6 +361,10 @@
     completeReady();
   }
   async function restore() {
+    if (callbackFailed) {
+      callbackFailed = false; history.replaceState(null, '', location.pathname + location.search);
+      find('pf-login').hidden = false; message('El enlace no es válido o caducó. Escribe tu correo y pulsa «¿Has olvidado tu contraseña?» para solicitar otro.', true); return;
+    }
     find('pf-retry').hidden = true;
     message('Cargando datos compartidos…');
     try {
@@ -360,12 +372,19 @@
       if (error) throw error;
       let session = data.session;
       if (session) { const fresh = await client.auth.getUser(); if (!fresh.error && fresh.data.user) session = { ...session, user: fresh.data.user }; }
+      if (recovering && !session) throw new Error('La sesión de recuperación no es válida. Solicita otro enlace.');
       await unlock(session);
+      if (recovering) {
+        recovering = false;
+        location.hash = 'ajustes';
+        document.querySelector('[data-settings-section=security]').click();
+        find('pf-set-password').click();
+      }
     } catch (error) {
       find('pf-login').hidden = false;
       find('pf-retry').hidden = false;
       const denied = error?.code === '42501' || error?.status === 401 || error?.status === 403;
-      message(error?.code === 'P0002' ? 'El proyecto de este enlace no existe. Revisa la dirección que te compartieron.' : denied ? 'La consulta con el enlace todavía no está disponible. Puedes entrar con una cuenta autorizada.' : 'No se pudieron cargar los datos. Comprueba tu conexión y pulsa Reintentar.', true);
+      message(recovering ? 'El enlace de recuperación no es válido o caducó. Solicita otro con «¿Has olvidado tu contraseña?». ' : error?.code === 'P0002' ? 'El proyecto de este enlace no existe. Revisa la dirección que te compartieron.' : denied ? 'La consulta con el enlace todavía no está disponible. Puedes entrar con una cuenta autorizada.' : 'No se pudieron cargar los datos. Comprueba tu conexión y pulsa Reintentar.', true);
     }
   }
   window.ProjectFlow = Object.freeze({
@@ -407,6 +426,18 @@
     } catch { message('No se pudo solicitar el enlace. Comprueba tu conexión y vuelve a intentarlo.', true); }
     finally { find('pf-enter').disabled = false; find('pf-login-link').disabled = false; }
   });
+  find('pf-forgot-password').addEventListener('click', async () => {
+    if (!client || !find('pf-email-input').reportValidity()) return;
+    const button = find('pf-forgot-password'); if (button.disabled) return;
+    button.disabled = true; message('Solicitando recuperación…');
+    try {
+      const { error } = await client.auth.resetPasswordForEmail(find('pf-email-input').value.trim(), { redirectTo: projectUrl() });
+      if (error) throw error;
+      find('pf-password').value = '';
+      message('Si existe una cuenta con ese correo, recibirás un enlace para crear una nueva contraseña. Revisa también spam.');
+    } catch { message('No se pudo enviar la recuperación. Espera un minuto y vuelve a intentarlo.', true); }
+    finally { button.disabled = false; }
+  });
   find('pf-retry').addEventListener('click', restore);
   find('pf-cancel-login').addEventListener('click', () => {
     gate.hidden = true;
@@ -437,7 +468,7 @@
         }
         updateAssigneeNames(state);
         if (!equal(state.data, cache)) {
-          if (canEdit() || dirty.size) status('Hay cambios compartidos. Pulsa Actualizar para verlos.');
+          if (canEdit() || dirty.size) status('Hay cambios compartidos. Recarga la página para verlos.');
           else {
             cache = copy(state.data);
             document.dispatchEvent(new Event('projectflow:updated'));

@@ -27,7 +27,7 @@ En **Seguridad → Cambiar contraseña**, cada persona con sesión puede
 definir su propia contraseña para volver a entrar con su correo, incluidos quienes
 aceptaron anteriormente una invitación sin haber elegido contraseña.
 
-**Tamaño de letra** tiene siete niveles, con vista previa y aplicación inmediata
+**Tamaño de letra** tiene siete niveles, con aplicación inmediata
 a toda la web. Son 87,5 %, 93,75 %, 100 %, 112,5 %, 125 %, 137,5 % y 150 % del
 tamaño base del navegador (14, 15, 16, 18, 20, 22 y 24 px con la base habitual).
 El nivel 3 es el predeterminado y **Restablecer tamaño** vuelve a él. La preferencia
@@ -56,7 +56,7 @@ se necesita ejecutar el SQL actualizado; el servidor obtiene ese rol de la cuent
 Al aceptar una invitación, la persona elige un nombre o alias de 1 a 60 caracteres.
 Se guarda en su cuenta de Supabase Auth (`user_metadata.display_name`), separado de
 sus roles, correo y contraseña. En Ajustes → Cuenta, el alias encabeza el perfil y puede
-modificarse en **Nombre o alias → Guardar nombre**. Las cuentas anteriores pueden
+modificarse en **Cambiar alias → Guardar cambios**. Las cuentas anteriores pueden
 hacerlo sin una nueva invitación. El correo sigue siendo el identificador de acceso.
 
 Los responsables se muestran por su alias actual, incluso en solicitudes existentes.
@@ -95,3 +95,8 @@ Sitio estático sin compilación. El SDK de Supabase está incluido en `assets/v
 Las pruebas SQL usan PostgreSQL mediante PGlite. Las de navegador usan Python,
 Playwright y Chromium en `/usr/bin/chromium`, con una API de Supabase simulada.
 No escriben en Supabase real ni envían correos.
+
+Para recuperar la contraseña, abre el inicio de sesión, escribe el correo y pulsa
+**¿Has olvidado tu contraseña?**. El correo de Supabase devuelve a `index.html`
+y abre el formulario para elegir una contraseña nueva. Usa el mismo remitente SMTP
+y la URL de retorno que el acceso por correo; no crea cuentas ni concede permisos.

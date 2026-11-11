@@ -21,7 +21,7 @@ retira la lectura pública. Las preferencias de apariencia están disponibles pa
 1. Copia todo [supabase/setup.sql](https://raw.githubusercontent.com/uribemaxi2-gif/ProjectFlow/main/supabase/setup.sql).
 2. En Supabase abre **SQL Editor → New query**, pega y pulsa **Run**.
 3. Recarga ProjectFlow. **Ajustes → Datos** muestra el rol y
-   **Ajustes → Datos → Roles e invitaciones** permite gestionarlo.
+   **Ajustes → Datos → Usuarios** permite gestionarlo.
 
 Publicar la web no ejecuta el SQL remoto. Hasta ejecutarlo, se mantienen los
 permisos anteriores y la web muestra un aviso de actualización.
@@ -35,7 +35,7 @@ Repetir el SQL no restaura una administración global retirada.
 
 ## Administrar personas
 
-Selecciona el proyecto y abre **Roles e invitaciones**. Para invitar, escribe el
+Selecciona el proyecto y abre **Usuarios**. Para invitar, escribe el
 correo y elige **Rol al aceptar**. Para cambiar una participación aceptada,
 selecciona el rol junto a la persona y pulsa **Guardar rol**.
 
