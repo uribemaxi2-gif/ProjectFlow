@@ -18,11 +18,11 @@ consultar ese proyecto, sin mostrar el catálogo personal.
 El menú se abre y cierra con **Abrir menú / Cerrar menú**. En celular y tablet
 comienza cerrado; al elegir una sección deja libre la pantalla. En PC puedes
 ocultarlo para ampliar el contenido. El menú móvil admite teclado, Escape y cierre
-al tocar fuera. **⚙ Ajustes** abre una pantalla propia con **Mi cuenta**,
+al tocar fuera. **⚙ Ajustes** abre una pantalla propia con **tu perfil (nombre o alias)**,
 **Apariencia** y **Proyecto y enlace**. El botón **Volver** y el botón Atrás del
 navegador regresan al proyecto sin perder formularios pendientes de guardar.
 El nombre del proyecto y el estado de guardado siguen visibles.
-En **Mi cuenta → Crear o cambiar contraseña**, cada persona con sesión puede
+En **tu perfil → Crear o cambiar contraseña**, cada persona con sesión puede
 definir su propia contraseña para volver a entrar con su correo, incluidos quienes
 aceptaron anteriormente una invitación sin haber elegido contraseña.
 
@@ -42,13 +42,29 @@ El rol y el estado aparecen a la derecha y las acciones al pie de las tarjetas.
 Las solicitudes permiten seleccionar un responsable (o «Sin asignar»), separado
 del solicitante. PM menor, PM y Admin eligen entre participantes activos del proyecto
 con rol QA o superior; QA envía solicitudes sin asignar responsables.
-El selector muestra el correo para distinguir cuentas; la tarjeta pública muestra
-solo la parte anterior a `@`. La base valida la asignación y conserva el nombre
-histórico si la cuenta deja de participar. Para activar el selector, ejecuta
+El selector muestra el alias; usa el correo para distinguir cuentas sin alias o con
+nombres repetidos. La tarjeta pública muestra el alias actual, sin publicar el correo.
+La base valida la asignación y guarda un nombre de referencia para respaldos. Para activar el selector, ejecuta
 `supabase/setup.sql`; sin esa actualización se pueden conservar los datos actuales.
 El rol se conserva tal como era al crear el registro; los anteriores sin ese dato
 muestran «Cargo no registrado». Para registrar el rol en nuevas solicitudes de QA,
 se necesita ejecutar el SQL actualizado; el servidor obtiene ese rol de la cuenta.
+
+## Nombre o alias
+
+Al aceptar una invitación, la persona elige un nombre o alias de 1 a 60 caracteres.
+Se guarda en su cuenta de Supabase Auth (`user_metadata.display_name`), separado de
+sus roles, correo y contraseña. En Ajustes, el alias reemplaza «Mi cuenta» y puede
+modificarse en **Nombre o alias → Guardar nombre**. Las cuentas anteriores pueden
+hacerlo sin una nueva invitación. El correo sigue siendo el identificador de acceso.
+
+Los responsables se muestran por su alias actual, incluso en solicitudes existentes.
+Las listas de gestión incluyen el alias y el correo para identificar la cuenta;
+los enlaces públicos no revelan esos correos. Si no hay alias se muestra «Sin alias».
+Los nombres pueden repetirse y nunca conceden permisos. El nombre del solicitante se
+rellena inicialmente con el alias, pero sigue pudiendo indicarse otro solicitante.
+Actualizar el SQL activa los alias en responsables y listas de participantes; elegir
+el alias en la invitación o en Ajustes usa directamente Supabase Auth.
 
 ## Configurar o actualizar
 

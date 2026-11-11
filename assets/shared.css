@@ -79,3 +79,12 @@ html.pf-readonly [data-pf-field], html.pf-readonly [data-pf-form] input, html.pf
 #week-tasks { padding-left: 20px; margin: 20px 0; }
 #week-tasks li { margin-bottom: 10px; }
 @media (max-width: 750px) { .personal-plan { padding: 16px; } #pf-projects { padding: 12px; } }
+
+#pf-profile-form { display: grid; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #dce2ed; }
+#pf-profile-form input { width: 100%; min-width: 0; min-height: 48px; border: 1px solid #acb6c7; border-radius: 10px; padding: 12px; font: inherit; }
+#pf-profile-form label { font-weight: 700; }
+#pf-profile-form p { margin: 0; color: #536178; overflow-wrap: anywhere; }
+#pf-profile-message:empty { display: none; }
+#pf-account-heading { overflow-wrap: anywhere; min-width: 0; }
+#pf-profile-form button { min-height: 48px; font: inherit; cursor: pointer; border: 1px solid #bfc7db; border-radius: 10px; padding: 12px; background: #f5f7fb; color: #26334d; }
+#pf-profile-form :focus-visible { outline: 3px solid #5556d9; outline-offset: 2px; }

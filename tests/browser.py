@@ -39,7 +39,7 @@ class Backend:
         self.multi = True
         self.default_id = '20000000-0000-0000-0000-000000000001'
         self.projects = {}
-        self.accounts = {email: {'has_password': True} for email in (*self.roles, 'outsider@example.test')}
+        self.accounts = {email: {'has_password': True, 'metadata': {'display_name':email.split('@')[0]}} for email in (*self.roles, 'outsider@example.test')}
         self.invitations = {}
         self.emails = []
         self.fail_email = False
@@ -52,6 +52,7 @@ class Backend:
         self.password_updates = []
         self.fail_password_update = False
         self.fail_assignees = False
+        self.fail_profile_update = False
 
     @staticmethod
     def normalized_role(role):
@@ -88,7 +89,7 @@ class Backend:
             respond(200, {'access_token': self.jwt(email), 'refresh_token': 'test-refresh-token',
                           'token_type': 'bearer', 'expires_in': 3600, 'expires_at': int(time.time()) + 3600,
                           'user': {'id': email, 'email': email, 'aud': 'authenticated',
-                                   'role': 'authenticated', 'app_metadata': {}, 'user_metadata': {}}})
+                                   'role': 'authenticated', 'app_metadata': {}, 'user_metadata': self.accounts.get(email,{}).get('metadata',{})}})
             return
         if path == '/auth/v1/logout':
             respond(200, {})
@@ -109,6 +110,11 @@ class Backend:
         except (IndexError, ValueError, KeyError):
             email = ''
         if path == '/auth/v1/user':
+            if request.method == 'PUT' and 'data' in body:
+                if self.fail_profile_update:
+                    respond(500, {'code':'unexpected_failure','msg':'Cannot save profile'})
+                    return
+                self.accounts[email].setdefault('metadata',{}).update(body['data'])
             if request.method == 'PUT' and 'password' in body:
                 if self.fail_password_update:
                     respond(422, {'code': 'weak_password', 'msg': 'Password update failed'})
@@ -117,7 +123,7 @@ class Backend:
                 self.accounts[email]['password'] = body['password']
                 self.password_updates.append(email)
             respond(200, {'id': email, 'email': email, 'aud': 'authenticated', 'role': 'authenticated',
-                          'email_confirmed_at': '2026-01-01T00:00:00Z', 'app_metadata': {}, 'user_metadata': {}})
+                          'email_confirmed_at': '2026-01-01T00:00:00Z', 'app_metadata': {}, 'user_metadata': self.accounts.get(email,{}).get('metadata',{})})
             return
         name = path.removeprefix('/rest/v1/rpc/')
         if not self.invitations_available and 'invitation' in name:
@@ -187,7 +193,7 @@ class Backend:
                           'email': email, 'role': invitation['role'], 'accepted': invitation['status'] == 'accepted', 'has_password': self.accounts[email]['has_password']})
             return
         def state():
-            result = {'data': data, 'role': roles.get(email, 'viewer')}
+            result = {'data': data, 'role': roles.get(email, 'viewer'), 'assignee_names': {r['assigneeId']: self.accounts.get(r['assigneeId'],{}).get('metadata',{}).get('display_name','Sin alias') for r in data.get(PROJECT,{}).get('requests',[]) if r.get('assigneeId')}}
             if self.multi:
                 result.update({'project_id': selected, 'name': data.get(PROJECT, {}).get('project', {}).get('name', 'Mi proyecto'),
                                'can_create': email == 'leader@example.test', 'can_manage': roles.get(email) == 'leader'})
@@ -209,7 +215,7 @@ class Backend:
                 respond(403, {'code':'42501','message':'No puedes asignar responsables.'})
                 return
             candidates = roles | ({e:'admin' for e in self.global_admins} if self.global_scope else {})
-            respond(200, [{'id':e,'email':e,'name':e.split('@')[0],'role':self.normalized_role(r)} for e,r in candidates.items() if self.normalized_role(r) in ('qa','pm_junior','pm','admin')])
+            respond(200, [{'id':e,'email':e,'name':self.accounts.get(e,{}).get('metadata',{}).get('display_name','Sin alias'),'role':self.normalized_role(r)} for e,r in candidates.items() if self.normalized_role(r) in ('qa','pm_junior','pm','admin')])
             return
         if name == 'projectflow_list_projects' and email:
             projects = [(self.default_id, self.data, self.roles)] + [(id, p['data'], p['roles']) for id, p in self.projects.items()]
@@ -249,7 +255,7 @@ class Backend:
                     for item in self.invitations.values():
                         if item['email'] == body['p_email'] and item['project_id'] == selected: item['status'] = 'revoked'
             listed_roles = roles | ({e:'admin' for e in self.global_admins} if self.global_scope else {})
-            respond(200, [{'email': e,'owner': self.normalized_role(r) == 'admin','active':True,'role':self.normalized_role(r),'self':e == email} for e,r in listed_roles.items()])
+            respond(200, [{'email': e,'name':self.accounts.get(e,{}).get('metadata',{}).get('display_name'),'owner': self.normalized_role(r) == 'admin','active':True,'role':self.normalized_role(r),'self':e == email} for e,r in listed_roles.items()])
             return
         if name == 'projectflow_submit_request' and role in ('qa', 'pm_junior', 'pm', 'admin'):
             payload = body['p_request']
@@ -286,7 +292,7 @@ class Backend:
                     if 'assigneeId' in record:
                         prior = previous.get(record.get('id'),{})
                         assigned = record['assigneeId']
-                        record['assigneeName'] = (prior.get('assigneeName','') if assigned and assigned == prior.get('assigneeId') else assigned.split('@')[0])
+                        record['assigneeName'] = (prior.get('assigneeName','') if assigned and assigned == prior.get('assigneeId') else self.accounts.get(assigned,{}).get('metadata',{}).get('display_name','Sin alias') if assigned else '')
             data[item['key']] = value
         self.saved += 1
         respond(200, state())
@@ -373,6 +379,11 @@ class SharedProjectTests(unittest.TestCase):
     def wait_saved(self, page):
         expect(page.locator('#pf-status')).to_have_text('Guardado compartido')
 
+    def accept_invitation(self, page):
+        if not page.locator('#inv-display-name').input_value():
+            page.locator('#inv-display-name').fill('Persona invitada')
+        page.locator('#inv-submit').click()
+
     def open_invitation(self, page, email, invitation_email=None):
         # Simulate an email verification callback on the recipient's own device.
         invitation_email = invitation_email or self.backend.emails[-1]
@@ -385,6 +396,69 @@ class SharedProjectTests(unittest.TestCase):
         page.locator('#pf-add-editor button[type="submit"]').click()
         expect(page.locator('#pf-access-message')).to_contain_text('Invitación enviada')
         return self.backend.emails[-1]
+
+    def test_invited_person_chooses_alias_and_profile_failure_does_not_accept_invitation(self):
+        owner=self.page(); self.login(owner)
+        self.invite(owner,'new@example.test')
+        guest=self.page(mobile=True); self.open_invitation(guest,'new@example.test')
+        expect(guest.locator('#inv-display-name')).to_be_visible()
+        expect(guest.locator('#inv-display-name')).to_have_value('')
+        guest.locator('#inv-password').fill('Abc123')
+        guest.locator('#inv-confirm').fill('Abc123')
+        guest.locator('#inv-submit').click()
+        self.assertEqual(next(iter(self.backend.invitations.values()))['status'],'pending')
+        guest.locator('#inv-display-name').fill('  Sol   Torres  ')
+        self.backend.fail_profile_update=True
+        guest.locator('#inv-submit').click()
+        expect(guest.locator('#inv-message')).to_contain_text('No se pudo guardar tu nombre')
+        self.assertEqual(next(iter(self.backend.invitations.values()))['status'],'pending')
+        self.backend.fail_profile_update=False
+        guest.locator('#inv-submit').click()
+        expect(guest.locator('#pf-role')).to_have_text('Edición autorizada')
+        self.open_settings(guest)
+        expect(guest.locator('#pf-account-heading')).to_have_text('Sol Torres')
+        expect(guest.locator('#pf-display-name')).to_have_value('Sol Torres')
+        self.assertEqual(self.backend.accounts['new@example.test']['metadata']['display_name'],'Sol Torres')
+        self.assertEqual(self.backend.accounts['leader@example.test']['metadata']['display_name'],'leader')
+        self.assertEqual(self.backend.password_updates,['new@example.test'])
+        another=self.page(); self.login(another,'new@example.test',password='Abc123')
+        self.open_settings(another)
+        expect(another.locator('#pf-account-heading')).to_have_text('Sol Torres')
+
+    def test_existing_user_can_choose_alias_and_responsible_name_updates_without_losing_draft(self):
+        self.enable_roles(); self.backend.global_scope=True
+        self.backend.accounts['qa@example.test']['metadata']={}
+        self.backend.data[PROJECT]={'schema':1,'project':{},'requests':[{'id':'alias-task','title':'Trabajo','detail':'Detalle','assigneeId':'qa@example.test','assigneeName':'antiguo-correo','requestedRole':'admin'}],'reviews':[],'agreements':[],'activity':[]}
+        owner=self.page(); owner.clock.install(); self.login(owner,path='proyecto.html')
+        owner.get_by_role('button',name='+ Nueva solicitud',exact=True).click()
+        owner.locator('#f-title').fill('Borrador que debe conservarse')
+        person=self.page(mobile=True); self.login(person,'qa@example.test')
+        self.open_settings(person)
+        expect(person.locator('#pf-account-heading')).to_have_text('Elige tu nombre')
+        person.locator('#pf-display-name').fill('  ')
+        person.locator('#pf-profile-form button').click()
+        expect(person.locator('#pf-profile-message')).to_contain_text('Escribe un nombre')
+        person.locator('#pf-display-name').fill('Luna <QA>')
+        self.backend.fail_profile_update=True
+        person.locator('#pf-profile-form button').click()
+        expect(person.locator('#pf-profile-message')).to_contain_text('No se pudo guardar')
+        expect(person.locator('#pf-account-heading')).to_have_text('Elige tu nombre')
+        self.backend.fail_profile_update=False
+        person.locator('#pf-profile-form button').click()
+        expect(person.locator('#pf-account-heading')).to_have_text('Luna <QA>')
+        expect(person.locator('#pf-role')).to_have_text('Consultor / QA')
+        expect(person.locator('#pf-account-heading qa')).to_have_count(0)
+        owner.clock.fast_forward(31000)
+        expect(owner.locator('#recent-requests .record-assignee')).to_contain_text('Luna <QA>')
+        expect(owner.locator('#f-title')).to_have_value('Borrador que debe conservarse')
+        expect(owner.locator('#edit-dialog')).to_be_visible()
+        person.reload()
+        expect(person.locator('#pf-account-heading')).to_have_text('Luna <QA>')
+        expect(person.locator('#pf-settings')).to_be_visible()
+        reader=self.page(); reader.goto(self.base+'/proyecto.html')
+        expect(reader.locator('#recent-requests .record-assignee')).to_contain_text('Luna <QA>')
+        expect(reader.locator('#recent-requests')).not_to_contain_text('antiguo-correo')
+        self.assertEqual(self.backend.password_updates,[])
 
     def test_anonymous_and_unapproved_accounts_can_read_but_cannot_edit(self):
         page = self.page()
@@ -940,7 +1014,7 @@ class SharedProjectTests(unittest.TestCase):
         recipient.locator('#inv-current-password').fill('test-password-only')
         expect(recipient.locator('#inv-password-kept')).to_be_visible()
         expect(recipient.locator('#inv-new-password')).to_be_hidden()
-        recipient.locator('#inv-submit').click()
+        self.accept_invitation(recipient)
         expect(recipient.locator('#pf-role')).to_have_text('Edición autorizada')
         owner.locator('#pf-access-close').click()
         second = self.create_project(owner, 'Otro', 7, '2026-12-20')
@@ -976,12 +1050,12 @@ class SharedProjectTests(unittest.TestCase):
         self.assertTrue(recipient.evaluate('document.documentElement.scrollWidth <= innerWidth'))
         recipient.locator('#inv-password').fill('my-private-password')
         recipient.locator('#inv-confirm').fill('different-password')
-        recipient.locator('#inv-submit').click()
+        self.accept_invitation(recipient)
         expect(recipient.locator('#inv-message')).to_contain_text('no coinciden')
         self.assertTrue(self.backend.accounts['new@example.test']['has_password'])
         self.assertEqual(self.backend.password_updates, [])
         recipient.locator('#inv-confirm').fill('my-private-password')
-        recipient.locator('#inv-submit').click()
+        self.accept_invitation(recipient)
         expect(recipient.locator('#pf-role')).to_have_text('Edición autorizada')
         self.assertEqual(parse_qs(urlparse(recipient.url).query)['project'], [project])
         self.assertNotIn('new@example.test', self.backend.roles)
@@ -995,19 +1069,19 @@ class SharedProjectTests(unittest.TestCase):
         expect(recipient.locator('#inv-new-password')).to_be_visible()
         recipient.locator('[name="password-mode"][value="existing"]').check()
         recipient.locator('#inv-current-password').fill('incorrect-password')
-        recipient.locator('#inv-submit').click()
+        self.accept_invitation(recipient)
         expect(recipient.locator('#inv-message')).to_contain_text('no es correcta')
         self.assertNotIn('new@example.test', self.backend.roles)
         recipient.locator('[name="password-mode"][value="new"]').check()
         recipient.locator('#inv-password').fill('Abc123')
         recipient.locator('#inv-confirm').fill('Abc123')
         self.backend.fail_password_update = True
-        recipient.locator('#inv-submit').click()
+        self.accept_invitation(recipient)
         expect(recipient.locator('#inv-message')).to_contain_text('No se pudo guardar')
         self.assertNotIn('new@example.test', self.backend.roles)
         self.assertEqual(self.backend.password_updates, [])
         self.backend.fail_password_update = False
-        recipient.locator('#inv-submit').click()
+        self.accept_invitation(recipient)
         expect(recipient.locator('#pf-role')).to_have_text('Consultor / QA')
         self.assertEqual(self.backend.password_updates, ['new@example.test'])
         returning = self.page()
@@ -1021,7 +1095,7 @@ class SharedProjectTests(unittest.TestCase):
         recipient = self.page(); self.open_invitation(recipient, 'outsider@example.test')
         recipient.locator('[name="password-mode"][value="existing"]').check()
         recipient.locator('#inv-current-password').fill('test-password-only')
-        recipient.locator('#inv-submit').click()
+        self.accept_invitation(recipient)
         expect(recipient.locator('#pf-role')).to_have_text('Consultor / QA')
         self.assertEqual(self.backend.password_updates, [])
         returning = self.page(); self.login(returning, 'outsider@example.test')
@@ -1120,7 +1194,7 @@ class SharedProjectTests(unittest.TestCase):
         recipient.locator('#inv-login [name="password"]').fill('test-password-only')
         recipient.locator('#inv-login button').click()
         expect(recipient.locator('#inv-accept')).to_be_visible()
-        recipient.locator('#inv-submit').click()
+        self.accept_invitation(recipient)
         expect(recipient.locator('#pf-role')).to_have_text('Edición autorizada')
         reader = self.page()
         reader.goto(email['redirect'] + '#error=access_denied&error_code=otp_expired')
@@ -1153,7 +1227,7 @@ class SharedProjectTests(unittest.TestCase):
         for role in ('qa', 'pm_junior', 'pm', 'viewer'):
             email = role + '@example.test'
             self.backend.roles[email] = role
-            self.backend.accounts[email] = {'has_password': True}
+            self.backend.accounts[email] = {'has_password': True,'metadata':{'display_name':email.split('@')[0]}}
 
     def test_pm_can_manage_only_lower_roles_in_selected_project(self):
         self.enable_roles(); self.backend.global_scope = True
@@ -1272,7 +1346,7 @@ class SharedProjectTests(unittest.TestCase):
         expect(recipient.locator('#inv-permissions')).to_contain_text('enviar solicitudes')
         recipient.locator('[name="password-mode"][value="existing"]').check()
         recipient.locator('#inv-current-password').fill('test-password-only')
-        recipient.locator('#inv-submit').click()
+        self.accept_invitation(recipient)
         expect(recipient.locator('#pf-role')).to_have_text('Consultor / QA')
         expect(recipient.locator('#agenda-add')).to_be_hidden()
 

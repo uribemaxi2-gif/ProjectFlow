@@ -154,6 +154,7 @@ dialog{border:0;border-radius:20px;padding:0;width:min(700px,calc(100% - 28px));
 <div role="status" aria-live="polite" id="toast" class="toast"></div>
 <script src="config.js"></script>
 <script src="assets/roles.js"></script>
+<script src="assets/profile.js"></script>
 <script src="assets/vendor/supabase.js"></script>
 <script src="assets/display.js"></script>
 <script src="assets/shared.js"></script>
@@ -205,7 +206,7 @@ function renderDashboard(){let pendingReq=data.requests.filter(r=>r.status==='Pe
 function safeShort(s,length=220){let str=String(s||'').replace(/\s+/g,' ').trim();return str.length>length?str.slice(0,length)+'…':str}
 function recordActions(kind,r){if(!ProjectFlow.canEdit())return `<div class="record-actions"><button type="button" class="btn small" data-view-kind="${kind}" data-view-id="${escapeHtml(r.id)}">Ver detalle</button></div>`;return `<div class="record-actions"><button type="button" class="btn small" data-edit-kind="${kind}" data-edit-id="${escapeHtml(r.id)}">${icon('edit')}Editar</button>${kind==='requests'?`<button type="button" class="btn small" data-pf-edit data-review-from="${escapeHtml(r.id)}">${icon('clipboard')}Solicitar revisión</button>`:''}</div>`}
 function recordHeader(r,status){return `<div class="record-header"><h3>${escapeHtml(r.title)}</h3><div class="record-badges">${pill(requesterRole(r),'purple')}${pill(status)}</div></div>`}
-function assigneeName(r){return r.assigneeId?(r.assigneeName||'Responsable sin nombre'):'Sin asignar'}
+function assigneeName(r){return r.assigneeId?(ProjectFlow.project().assigneeNames?.[r.assigneeId]||r.assigneeName||'Sin alias'):'Sin asignar'}
 function renderRequests(){
  const term=$('#req-search').value.trim().toLocaleLowerCase('es'),status=$('#req-filter-status').value,priority=$('#req-filter-priority').value;
  const filtered=sorted(data.requests).filter(r=>(!status||r.status===status)&&(!priority||r.priority===priority)&&(!term||[r.title,r.detail,r.module,r.requestedBy,r.decision,assigneeName(r)].join(' ').toLocaleLowerCase('es').includes(term)));
@@ -240,7 +241,7 @@ function entryFields(kind,r){if(kind==='requests')return [
  field({name:'detail',label:'¿Qué necesitas hacer?',type:'textarea',value:getVal(r,'detail'),placeholder:'Explica el cambio o requerimiento...',full:true,required:true,maxlength:5000}),
  field({name:'benefit',label:'Motivo / resultado esperado',type:'textarea',value:getVal(r,'benefit'),placeholder:'¿Qué problema resuelve?',full:true,maxlength:3500,rows:2}),
  field({name:'module',label:'Módulo o área afectada',value:getVal(r,'module'),placeholder:'Ej.: Registro, Reportes, Login',maxlength:120}),
- field({name:'requestedBy',label:'Solicitado por',value:getVal(r,'requestedBy'),placeholder:'Tu nombre o el de un colaborador',maxlength:120}),
+ field({name:'requestedBy',label:'Solicitado por',value:getVal(r,'requestedBy',r?.id?'':ProjectFlow.project().displayName),placeholder:'Tu nombre o el de un colaborador',maxlength:120}),
  field({name:'createdDate',label:'Fecha de solicitud',type:'date',value:getVal(r,'createdDate',today())}),
  field({name:'dueDate',label:'Fecha objetivo (si se acuerda)',type:'date',value:getVal(r,'dueDate')}),
  field({name:'status',label:'Estado de la tarea',type:'select',values:['Pendiente','En evaluación','Aprobada','En desarrollo','Implementada','Rechazada'],value:getVal(r,'status','Pendiente')}),
@@ -253,7 +254,7 @@ function entryFields(kind,r){if(kind==='requests')return [
  field({name:'status',label:'Estado de revisión',type:'select',values:['Pendiente de revisión','En revisión','Aprobado','Requiere cambios'],value:getVal(r,'status','Pendiente de revisión')}),
  field({name:'dueDate',label:'Fecha objetivo de respuesta',type:'date',value:getVal(r,'dueDate')}),
  field({name:'priority',label:'Urgencia',type:'select',values:['Sin definir','Media','Alta','Baja'],value:getVal(r,'priority','Sin definir')}),
- field({name:'requestedBy',label:'Encargado / quien solicita revisión',value:getVal(r,'requestedBy'),placeholder:'Ej.: Mi nombre',maxlength:120}),
+ field({name:'requestedBy',label:'Encargado / quien solicita revisión',value:getVal(r,'requestedBy',r?.id?'':ProjectFlow.project().displayName),placeholder:'Ej.: Mi nombre',maxlength:120}),
  field({name:'link',label:'Enlace a demo, Figma o documento',type:'url',value:getVal(r,'link'),placeholder:'https://...',maxlength:500}),
  field({name:'criteria',label:'Qué necesitas comprobar',type:'textarea',value:getVal(r,'criteria'),placeholder:'Comportamiento esperado y criterios para aceptar...',full:true,required:true,maxlength:5000}),
  field({name:'feedback',label:'Resultado y observaciones',type:'textarea',value:getVal(r,'feedback'),placeholder:'Comentarios y observaciones...',full:true,maxlength:5000})].join('')}
@@ -303,7 +304,7 @@ async function loadAssignees(entry,record){
   const people=await ProjectFlow.projectRpc('projectflow_list_assignees',{p_project_id:ProjectFlow.project().id});
   if(editing!==entry)return;
   const selected=select.value;select.replaceChildren(new Option('Sin asignar',''));
-  for(const person of people){const option=new Option(`${person.email} · ${ProjectFlowRoles.labels[person.role]||person.role}`,person.id);option.dataset.name=person.name;select.add(option)}
+  for(const person of people){const option=new Option(`${person.name||'Sin alias'} · ${ProjectFlowRoles.labels[person.role]||person.role}${!person.name||person.name==='Sin alias'||people.filter(p=>p.name===person.name).length>1?' ('+person.email+')':''}`,person.id);option.dataset.name=person.name;select.add(option)}
   if(selected&&!people.some(p=>p.id===selected)){const option=new Option(`${assigneeName(record||{})} (sin participación activa)`,selected);option.dataset.name=record?.assigneeName||'';select.add(option)}
   select.value=selected;delete select.dataset.pfUnavailable;select.disabled=!ProjectFlow.canEdit();$('#assignee-status').textContent='Elige quién realizará el trabajo. El solicitante se registra por separado.';
  }catch(error){
@@ -404,6 +405,7 @@ function bind(){
  for(const selector of ['#req-search','#req-filter-status','#req-filter-priority'])$(selector).addEventListener('input',renderRequests);for(const selector of ['#rev-search','#rev-filter-status'])$(selector).addEventListener('input',renderReviews);for(const selector of ['#agr-search','#agr-filter-kind'])$(selector).addEventListener('input',renderAgreements);
  $('#entry-form').addEventListener('submit',saveEntry);$('#delete-entry').addEventListener('click',deleteEntry);$('#project-form').addEventListener('submit',saveProject);$('#edit-dialog').addEventListener('close',()=>{editing=null;ProjectFlow.clean('draft:entry')});$('#backup-download').addEventListener('click',backup);$('#footer-backup').addEventListener('click',backup);$('#backup-import-trigger').addEventListener('click',()=>$('#backup-import').click());$('#backup-import').addEventListener('change',e=>importBackup(e.target.files?.[0]));$('#export-requests').addEventListener('click',exportRequests)}
 load();bind();renderAll();fillProject();ProjectFlow.applyAccess();
+document.addEventListener('projectflow:profiles',renderAll);
 document.addEventListener('projectflow:updated',()=>{const open=editing;load();renderAll();fillProject();if(open?.recordId){if(data[open.kind].some(r=>r.id===open.recordId))openEntry(open.kind,open.recordId);else closeDialog()}});
 })();
 </script>

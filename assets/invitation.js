@@ -9,7 +9,7 @@
   const find = id => document.getElementById(id);
   const invitationId = new URL(location.href).searchParams.get('invitation');
   const callbackError = new URLSearchParams(location.hash.slice(1)).get('error');
-  let client, invitation, busy = false, passwordReady = false;
+  let client, invitation, busy = false, passwordReady = false, savedName = '';
   function message(text, error = false) { find('inv-message').textContent = text; find('inv-message').dataset.error = String(error); }
   function setBusy(value) {
     busy = value;
@@ -40,7 +40,7 @@
   async function load() {
     invitation = null; passwordReady = false;
     find('inv-login').hidden = true; find('inv-accept').hidden = true; find('inv-retry').hidden = true;
-    find('inv-account').hidden = true; clearPassword();
+    find('inv-account').hidden = true; clearPassword(); find('inv-display-name').value = ''; savedName = '';
     const { data, error } = await client.auth.getSession();
     if (error) throw error;
     if (!data.session) {
@@ -51,6 +51,8 @@
     find('inv-account').hidden = false;
     find('inv-email').textContent = data.session.user.email || '';
     invitation = await rpc('projectflow_get_invitation');
+    savedName = ProjectFlowProfile.name(data.session.user);
+    find('inv-display-name').value = savedName;
     find('inv-project').textContent = invitation.name;
     const role = invitation.role || 'pm_junior';
     find('inv-role').textContent = 'Rol: ' + (ProjectFlowRoles.labels[role] || 'Acceso al proyecto');
@@ -84,6 +86,8 @@
   });
   find('inv-accept').addEventListener('submit', async event => {
     event.preventDefault(); if (busy || !invitation) return;
+    const displayName = ProjectFlowProfile.normalize(find('inv-display-name').value);
+    if (!ProjectFlowProfile.valid(displayName)) { message('Escribe un nombre o alias de hasta 60 caracteres.', true); find('inv-display-name').focus(); return; }
     const create = document.querySelector('[name="password-mode"]:checked').value === 'new';
     if (!passwordReady && create && find('inv-password').value !== find('inv-confirm').value) {
       message('Las contraseñas no coinciden.', true); find('inv-confirm').focus(); return;
@@ -101,6 +105,11 @@
           return;
         }
         passwordReady = true; clearPassword(); showPassword();
+      }
+      if (displayName !== savedName) {
+        const { error } = await client.auth.updateUser({ data: { display_name: displayName } });
+        if (error) { message('No se pudo guardar tu nombre. Vuelve a intentarlo; la invitación sigue pendiente.', true); return; }
+        savedName = displayName;
       }
       const accepted = await rpc('projectflow_accept_invitation');
       const destination = new URL('index.html', location.href);

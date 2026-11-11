@@ -24,6 +24,9 @@
       <h2 id="inv-project"></h2>
       <p id="inv-role"></p>
       <p id="inv-permissions">El permiso corresponde únicamente a este proyecto.</p>
+      <label for="inv-display-name">Tu nombre o alias</label>
+      <input id="inv-display-name" autocomplete="nickname" maxlength="60" required aria-describedby="inv-name-help" placeholder="Ej.: Maxi">
+      <p id="inv-name-help">Así aparecerás en ProjectFlow. Puedes cambiarlo después en Ajustes.</p>
       <fieldset id="inv-password-options" hidden>
         <legend>Tu acceso a ProjectFlow</legend>
         <label class="password-option"><input type="radio" name="password-mode" value="new" checked>Crear o cambiar mi contraseña</label>
@@ -49,6 +52,7 @@
   </main>
   <script src="config.js"></script>
 <script src="assets/roles.js"></script>
+<script src="assets/profile.js"></script>
   <script src="assets/vendor/supabase.js"></script>
   <script src="assets/invitation.js"></script>
 </body>

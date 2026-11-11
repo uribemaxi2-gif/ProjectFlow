@@ -23,7 +23,7 @@
       <label for="pf-password">Contraseña</label><input id="pf-password" type="password" autocomplete="current-password" required>
       <button type="submit" id="pf-enter">Entrar</button>
       <button type="button" id="pf-login-link">Recibir enlace por correo</button>
-      <p>Si aún no tienes contraseña o no la recuerdas, recibe un enlace para entrar y definirla en Mi cuenta.</p>
+      <p>Si aún no tienes contraseña o no la recuerdas, recibe un enlace para entrar y definirla en Ajustes.</p>
     </form>
     <p id="pf-message" role="status" aria-live="polite">Cargando datos compartidos…</p>
     <button id="pf-retry" type="button" hidden>Reintentar</button>
@@ -179,6 +179,7 @@
           cache[key] = copy(savedState?.data && Object.hasOwn(savedState.data, key) ? savedState.data[key] : value);
           if (dirty.get(key) === versions.get(key)) clean(key);
         }
+        updateAssigneeNames(savedState);
         document.dispatchEvent(new Event('projectflow:saved'));
         status('Guardado compartido');
       } catch (error) {
@@ -208,6 +209,43 @@
       status('Respaldo descargado. Puedes importarlo desde Mi proyecto → Ficha del proyecto.');
     } catch { status('No se pudieron leer los datos anteriores de este navegador.', true); }
   }
+  function showProfile(user) {
+    const name = ProjectFlowProfile.name(user);
+    projectInfo.displayName = name;
+    if (find('pf-account-heading')) find('pf-account-heading').textContent = name || (user ? 'Elige tu nombre' : 'Tu cuenta');
+    const avatar = document.querySelector('.pf-account-avatar');
+    if (avatar) avatar.textContent = name ? name.split(' ').slice(0,2).map(word=>Array.from(word)[0]).join('').toLocaleUpperCase('es') : 'YO';
+  }
+  function profileForm(user) {
+    const form = document.createElement('form'); form.id = 'pf-profile-form';
+    form.innerHTML = `<label for="pf-display-name">Nombre o alias</label><input id="pf-display-name" autocomplete="nickname" maxlength="60" required placeholder="¿Cómo quieres que te llamemos?">
+      <p>Se mostrará en tus proyectos. Para entrar seguirás usando tu correo.</p><button type="submit">Guardar nombre</button><p id="pf-profile-message" role="status"></p>`;
+    find('pf-account-content').append(form);
+    find('pf-display-name').value = ProjectFlowProfile.name(user);
+    let saving = false;
+    form.addEventListener('submit', async event => {
+      event.preventDefault(); if (saving) return;
+      const name = ProjectFlowProfile.normalize(find('pf-display-name').value);
+      if (!ProjectFlowProfile.valid(name)) { find('pf-profile-message').textContent = 'Escribe un nombre o alias de hasta 60 caracteres.'; return; }
+      saving = true; pending++; form.querySelectorAll('input,button').forEach(el=>el.disabled=true);
+      find('pf-profile-message').textContent = 'Guardando nombre…';
+      try {
+        const { data, error } = await client.auth.updateUser({ data: { display_name: name } });
+        if (error) throw error;
+        showProfile(data.user); find('pf-display-name').value = ProjectFlowProfile.name(data.user);
+        find('pf-profile-message').textContent = 'Nombre guardado.';
+        document.dispatchEvent(new Event('projectflow:profile-saved'));
+      } catch { find('pf-profile-message').textContent = 'No se pudo guardar tu nombre. Conservamos lo escrito para que puedas reintentar.'; }
+      finally { saving=false; pending--; form.querySelectorAll('input,button').forEach(el=>el.disabled=false); }
+    });
+  }
+  function updateAssigneeNames(state) {
+    const names = state?.assignee_names || {};
+    if (!equal(projectInfo.assigneeNames, names)) {
+      projectInfo.assigneeNames = copy(names);
+      document.dispatchEvent(new Event('projectflow:profiles'));
+    }
+  }
   function sessionBar(user) {
     if (find('pf-session')) return;
     const bar = document.createElement('div');
@@ -221,6 +259,7 @@
       <button type="button" id="pf-logout" hidden>Salir</button></div>
       <p id="pf-password-feedback" role="status"></p>`;
     find('pf-account-content').append(bar);
+    showProfile(user); if (user) profileForm(user);
     find('pf-role').textContent = projectInfo.rolesVersion ? ProjectFlowRoles.labels[projectInfo.role] : canEdit() ? 'Edición autorizada' : 'Solo lectura';
     find('pf-email').textContent = user?.email || 'Puedes consultar sin cuenta';
     find('pf-open-login').hidden = !!user;
@@ -298,7 +337,7 @@
     projectInfo = { id: projectId, name: state.name || cache[KEYS[2]]?.project?.name || 'Mi proyecto',
       role: stateRole(state), rolesVersion: state.roles_version || 0, scopeVersion: state.scope_version || 1, canManage: !!state.can_manage,
       canInvite: state.roles_version ? !!state.can_invite : !!state.can_manage,
-      canCreate: !!state.can_create, multi, signedIn: !!session };
+      canCreate: !!state.can_create, assigneeNames: state.assignee_names || {}, multi, signedIn: !!session };
     preserveProjectLinks();
     unlocked = true;
     editor = ['admin', 'pm', 'pm_junior'].includes(projectInfo.role);
@@ -315,7 +354,9 @@
     try {
       const { data, error } = await client.auth.getSession();
       if (error) throw error;
-      await unlock(data.session);
+      let session = data.session;
+      if (session) { const fresh = await client.auth.getUser(); if (!fresh.error && fresh.data.user) session = { ...session, user: fresh.data.user }; }
+      await unlock(session);
     } catch (error) {
       find('pf-login').hidden = false;
       find('pf-retry').hidden = false;
@@ -327,6 +368,7 @@
     ready: () => ready, get, set: (key, value) => setMany({ [key]: value }), setMany, markDirty, clean, canEdit, canSubmit, submitRequest, checkPermissions, applyAccess, normalizeSchedule,
     project: () => ({ ...projectInfo, name: cache[KEYS[2]]?.project?.name || projectInfo.name }), projectUrl, navigate, projectRpc, inviteEditor
   });
+  document.addEventListener('projectflow:profile-saved', async () => { try { updateAssigneeNames(await requestState()); } catch { /* Next refresh retries. */ } });
   window.addEventListener('beforeunload', event => {
     if (unlocked && (dirty.size || pending)) { event.preventDefault(); event.returnValue = ''; }
   });
@@ -340,7 +382,9 @@
         email: find('pf-email-input').value.trim(), password: find('pf-password').value
       });
       if (error) { message('No se pudo iniciar sesión. Revisa el correo y la contraseña de tu cuenta de ProjectFlow.', true); return; }
-      await unlock(data.session);
+      let session = data.session;
+      if (session) { const fresh = await client.auth.getUser(); if (!fresh.error && fresh.data.user) session = { ...session, user: fresh.data.user }; }
+      await unlock(session);
     } catch (error) { message(errorText(error), true); }
     finally { find('pf-enter').disabled = false; find('pf-login-link').disabled = false; }
   });
@@ -355,7 +399,7 @@
         options: { shouldCreateUser: false, emailRedirectTo: projectUrl() } });
       if (error) { message('No se pudo solicitar el enlace. Revisa el correo de tu invitación y espera un minuto antes de reintentar.', true); return; }
       find('pf-password').value = '';
-      message('Revisa tu correo. Si la cuenta existe, recibirás un enlace para entrar. Después ve a Ajustes → Mi cuenta → Crear o cambiar contraseña.');
+      message('Revisa tu correo. Si la cuenta existe, recibirás un enlace para entrar. Después ve a Ajustes → tu perfil → Crear o cambiar contraseña.');
     } catch { message('No se pudo solicitar el enlace. Comprueba tu conexión y vuelve a intentarlo.', true); }
     finally { find('pf-enter').disabled = false; find('pf-login-link').disabled = false; }
   });
@@ -387,6 +431,7 @@
           lock('Tus permisos cambiaron. Pulsa Reintentar para cargar el acceso actual.');
           return;
         }
+        updateAssigneeNames(state);
         if (!equal(state.data, cache)) {
           if (canEdit() || dirty.size) status('Hay cambios compartidos. Pulsa Actualizar para verlos.');
           else {

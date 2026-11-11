@@ -88,7 +88,7 @@ el permiso de edición se valida por separado al aceptar la invitación.
 1. Entra como admin o PM y selecciona el proyecto.
 2. Abre **⚙ Ajustes → Proyecto y enlace → Roles e invitaciones**.
 3. Escribe el correo. El Admin global elige cualquier rol; el PM solo Usuario, Consultor / QA o PM menor. Pulsa **Enviar invitación**.
-4. La persona abre el correo y crea su contraseña. Si ya conoce una contraseña
+4. La persona abre el correo, elige su nombre o alias y crea su contraseña. Si ya conoce una contraseña
    de ProjectFlow, elige **Ya conozco mi contraseña y quiero conservarla** y la
    escribe para confirmarla. Luego pulsa **Aceptar invitación**. Puede hacerlo
    desde otro dispositivo o navegador.
@@ -99,11 +99,11 @@ cuenta y recibe el rol indicado: Admin global en toda la web; los demás, en ese
 Después podrá entrar con su correo y contraseña desde los ajustes de la web.
 
 Si alguien ya aceptó una invitación y sigue dentro de la aplicación, puede usar
-**⚙ Ajustes → Mi cuenta → Crear o cambiar contraseña**. Esta opción permite
+**⚙ Ajustes → tu perfil (nombre o alias) → Crear o cambiar contraseña**. Esta opción permite
 definir su contraseña personal sin pedirla al admin ni modificar sus roles.
 Si ya cerró sesión, en **Entrar a mi cuenta** puede escribir su correo y pulsar
 **Recibir enlace por correo**. Al abrir ese enlace vuelve a entrar y puede definir
-la contraseña en Mi cuenta. Este acceso solo sirve para cuentas existentes y no
+la contraseña en su perfil. Este acceso solo sirve para cuentas existentes y no
 concede permisos de proyecto nuevos.
 
 La web permite contraseñas desde **6 caracteres**, el mínimo admitido por Supabase

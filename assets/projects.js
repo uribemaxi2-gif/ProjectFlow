@@ -104,7 +104,7 @@
   function renderEditors(editors) {
     find('pf-editor-list').replaceChildren(...editors.filter(person => person.active).map(person => {
       const li = document.createElement('li'), label = document.createElement('span');
-      label.textContent = person.email + (info.rolesVersion ? ' · ' + ProjectFlowRoles.labels[person.role] : person.owner ? ' · Propietario' : ' · Puede editar'); li.append(label);
+      label.textContent = ((person.name || 'Sin alias') + ' · ' + person.email) + (info.rolesVersion ? ' · ' + ProjectFlowRoles.labels[person.role] : person.owner ? ' · Propietario' : ' · Puede editar'); li.append(label);
       if (info.rolesVersion && canManagePerson(person)) {
         const controls = document.createElement('div'), roleLabel = document.createElement('label'), select = document.createElement('select');
         controls.className = 'pf-member-controls'; roleLabel.textContent = 'Rol'; select.setAttribute('aria-label', 'Rol de ' + person.email);

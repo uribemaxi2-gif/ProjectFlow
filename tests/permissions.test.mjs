@@ -16,7 +16,7 @@ before(async () => {
     create role authenticated nologin;
     create schema auth;
     create table auth.users (id uuid primary key, email text unique,
-      email_confirmed_at timestamptz default now(), encrypted_password text default 'test-hash');
+      raw_user_meta_data jsonb not null default '{}'::jsonb, email_confirmed_at timestamptz default now(), encrypted_password text default 'test-hash');
     create function auth.uid() returns uuid language sql stable as $$
       select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
     $$;
@@ -155,7 +155,7 @@ test('anonymous readers receive saved data without member identities', async () 
   await asUser(null, async () => {
     const result = await getState();
     assert.deepEqual(result.data['equipo14.personas'], { 1: 'Equipo' });
-    assert.deepEqual(Object.keys(result).sort(), ['can_create', 'can_invite', 'can_manage', 'can_submit', 'data', 'name', 'project_id', 'project_role', 'role', 'roles_version', 'scope_version', 'updated_at']);
+    assert.deepEqual(Object.keys(result).sort(), ['assignee_names', 'can_create', 'can_invite', 'can_manage', 'can_submit', 'data', 'name', 'project_id', 'project_role', 'role', 'roles_version', 'scope_version', 'updated_at']);
   }, 'anon');
 });
 
@@ -626,7 +626,7 @@ test('responsibles are eligible project participants; private choices and public
     const initial=await rpc('projectflow_get_project',[project]), section=initial.data['projecthub.cliente.v1'];
     const next={...section,requests:[{id:'assigned-request',title:'Tarea',requestedRole:'admin',assigneeId:worker,assigneeName:'Nombre falsificado'}]};
     const saved=await rpc('projectflow_save_project',[project,JSON.stringify([update('projecthub.cliente.v1',section,next)])]);
-    assert.equal(saved.data['projecthub.cliente.v1'].requests[0].assigneeName,'worker');
+    assert.equal(saved.data['projecthub.cliente.v1'].requests[0].assigneeName,'Sin alias');
     const current=saved.data['projecthub.cliente.v1'];
     for(const invalid of [other,crypto.randomUUID(),'not-a-uuid',null]) {
       await assert.rejects(()=>rpc('projectflow_save_project',[project,JSON.stringify([update('projecthub.cliente.v1',current,{...current,requests:[{...current.requests[0],assigneeId:invalid}]})])]),e=>e.code==='22023');
@@ -639,10 +639,33 @@ test('responsibles are eligible project participants; private choices and public
     assert.ok(!(await rpc('projectflow_list_assignees',[project])).some(p=>p.id===worker));
     const state=await rpc('projectflow_get_project',[project]),current=state.data['projecthub.cliente.v1'];
     const saved=await rpc('projectflow_save_project',[project,JSON.stringify([update('projecthub.cliente.v1',current,{...current,requests:[{...current.requests[0],title:'Editada',assigneeName:'No reemplazar'}]})])]);
-    assert.equal(saved.data['projecthub.cliente.v1'].requests[0].assigneeName,'worker');
+    assert.equal(saved.data['projecthub.cliente.v1'].requests[0].assigneeName,'Sin alias');
     const next=saved.data['projecthub.cliente.v1'];
     const cleared=await rpc('projectflow_save_project',[project,JSON.stringify([update('projecthub.cliente.v1',next,{...next,requests:[{...next.requests[0],assigneeId:''}]})])]);
     assert.equal(cleared.data['projecthub.cliente.v1'].requests[0].assigneeName,'');
   });
   await asUser(qa,()=>assert.rejects(()=>rpc('projectflow_submit_request',[project,JSON.stringify({id:crypto.randomUUID(),title:'No asignar',detail:'Prueba',assigneeId:leader})]),e=>e.code==='22023'));
+});
+
+test('aliases replace email prefixes without changing permissions or exposing a user directory', async()=>{
+  const project=(await asUser(leader,()=>rpc('projectflow_create_project',['Alias',null,null,1]))).project_id;
+  const person=crypto.randomUUID(), outsiderAlias=crypto.randomUUID();
+  await db.query("insert into auth.users(id,email,raw_user_meta_data) values($1,'alias-person@example.test',$2),($3,'private-alias@example.test',$4)",[person,JSON.stringify({display_name:'  Ana   QA ',role:'admin'}),outsiderAlias,JSON.stringify({display_name:'Nombre privado'})]);
+  await db.query("insert into public.projectflow_project_members(project_id,user_id,role) values($1,$2,'qa')",[project,person]);
+  const before=await asUser(leader,()=>rpc('projectflow_get_project',[project]));
+  const section=before.data['projecthub.cliente.v1'];
+  const saved=await asUser(leader,()=>rpc('projectflow_save_project',[project,JSON.stringify([update('projecthub.cliente.v1',section,{...section,requests:[{id:'alias-task',title:'Con alias',assigneeId:person,assigneeName:'ignored'}]})])]));
+  assert.equal(saved.data['projecthub.cliente.v1'].requests[0].assigneeName,'Ana QA');
+  assert.equal((await asUser(person,()=>rpc('projectflow_get_project',[project]))).project_role,'qa');
+  await db.query("update auth.users set raw_user_meta_data = $1 where id=$2",[JSON.stringify({display_name:'Ana pruebas'}),person]);
+  await asUser(null,async()=>{
+    const state=await rpc('projectflow_get_project',[project]);
+    assert.deepEqual(state.assignee_names,{[person]:'Ana pruebas'});
+    assert.deepEqual(state.data,saved.data); // Alias refresh does not invalidate optimistic write baselines.
+    assert.ok(!JSON.stringify(state).includes('Nombre privado'));
+    assert.ok(!JSON.stringify(state).includes('alias-person@example.test'));
+    await denied(()=>rpc('projectflow_display_name',[outsiderAlias]));
+  },'anon');
+  const choices=await asUser(leader,()=>rpc('projectflow_list_assignees',[project]));
+  assert.equal(choices.find(p=>p.id===person).name,'Ana pruebas');
 });

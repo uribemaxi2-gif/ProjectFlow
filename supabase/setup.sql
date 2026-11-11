@@ -135,6 +135,15 @@ returns boolean language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.projectflow_can_create() from public, anon, authenticated;
 
+-- El alias es presentación editable por su titular; nunca se usa para autorizar.
+create or replace function public.projectflow_display_name(p_user_id uuid)
+returns text language sql stable security definer set search_path = '' as $$
+  select case when jsonb_typeof(to_jsonb(u)->'raw_user_meta_data'->'display_name') = 'string'
+    then nullif(left(trim(regexp_replace(to_jsonb(u)->'raw_user_meta_data'->>'display_name', '\s+', ' ', 'g')),60),'') end
+    from auth.users u where u.id = p_user_id;
+$$;
+revoke all on function public.projectflow_display_name(uuid) from public, anon, authenticated;
+
 create or replace function public.projectflow_get_project(p_project_id uuid default null)
 returns jsonb language plpgsql stable security definer set search_path = '' as $$
 declare selected public.projectflow_state; effective_role text;
@@ -152,6 +161,12 @@ begin
     'can_invite', coalesce(effective_role in ('pm', 'admin'), false),
     'can_submit', coalesce(effective_role in ('qa', 'pm_junior', 'pm', 'admin'), false),
     'can_create', public.projectflow_can_edit_project(selected.project_id),
+    -- Solo exponer alias de responsables ya presentes en este proyecto público.
+    'assignee_names', (select coalesce(jsonb_object_agg(r->>'assigneeId',coalesce(public.projectflow_display_name(u.id),'Sin alias')),'{}'::jsonb)
+      from jsonb_array_elements(case when jsonb_typeof(selected.data #> '{projecthub.cliente.v1,requests}') = 'array'
+        then selected.data #> '{projecthub.cliente.v1,requests}' else '[]'::jsonb end) r
+      left join auth.users u on u.id::text = r->>'assigneeId'
+      where coalesce(r->>'assigneeId','') <> ''),
     'updated_at', selected.updated_at);
 end;
 $$;
@@ -183,7 +198,7 @@ begin
     or not public.projectflow_can_edit_project(p_project_id) then
     raise exception 'No puedes asignar responsables en este proyecto.' using errcode = '42501'; end if;
   return (select coalesce(jsonb_agg(jsonb_build_object('id',u.id,'email',u.email,
-    'name',split_part(u.email,'@',1),'role',public.projectflow_user_role(p_project_id,u.id)) order by u.email),'[]'::jsonb)
+    'name',coalesce(public.projectflow_display_name(u.id),'Sin alias'),'role',public.projectflow_user_role(p_project_id,u.id)) order by u.email),'[]'::jsonb)
     from auth.users u where public.projectflow_user_role(p_project_id,u.id) in ('qa','pm_junior','pm','admin'));
 end;
 $$;
@@ -215,7 +230,7 @@ begin
           raise exception 'Selecciona un responsable válido.' using errcode = '22023'; end if;
         if public.projectflow_user_role(p_project_id,assigned::uuid) not in ('qa','pm_junior','pm','admin') then
           raise exception 'Esa persona ya no participa en este proyecto. Actualiza los responsables.' using errcode = '22023'; end if;
-        select split_part(email,'@',1) into assigned_name from auth.users where id = assigned::uuid;
+        assigned_name := coalesce(public.projectflow_display_name(assigned::uuid),'Sin alias');
       end if;
       entry := jsonb_set(entry,'{assigneeName}',to_jsonb(coalesce(assigned_name,'')));
     end if;
@@ -409,7 +424,7 @@ begin
   entry := jsonb_build_object('id',v_request_id,'title',trim(p_request->>'title'),'detail',trim(p_request->>'detail'),
     'category',coalesce(p_request->>'category','Nueva funcionalidad'),'priority',coalesce(p_request->>'priority','Media'),
     'benefit',coalesce(p_request->>'benefit',''),'module',coalesce(p_request->>'module',''),
-    'requestedBy',coalesce(nullif(trim(p_request->>'requestedBy'),''),'Consultor / QA'),
+    'requestedBy',coalesce(nullif(trim(p_request->>'requestedBy'),''),public.projectflow_display_name(auth.uid()),'Consultor / QA'),
     'dueDate',coalesce(p_request->>'dueDate',''),'link',coalesce(p_request->>'link',''),
     'reviewRequired',coalesce(p_request->'reviewRequired','true'::jsonb),'status','Pendiente','decision','',
     'requestedRole',public.projectflow_role(p_project_id),
@@ -432,7 +447,7 @@ begin
   if public.projectflow_role(p_project_id) not in ('pm', 'admin') then
     raise exception 'Solo el Admin global o el PM del proyecto pueden administrar permisos.' using errcode = '42501';
   end if;
-  return (select coalesce(jsonb_agg(jsonb_build_object('email', u.email,
+  return (select coalesce(jsonb_agg(jsonb_build_object('email', u.email, 'name', public.projectflow_display_name(u.id),
     'owner', public.projectflow_is_admin(u.id), 'active', m.active or public.projectflow_is_admin(u.id),
     'role', case when public.projectflow_is_admin(u.id) then 'admin' else m.role end,
     'self', u.id = auth.uid()) order by u.email), '[]'::jsonb)
