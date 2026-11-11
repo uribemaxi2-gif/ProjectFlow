@@ -15,14 +15,15 @@ Consultor / QA (envía solicitudes), PM menor (gestiona datos), PM (administra s
 el correo y permiten crear una contraseña personal. Conocer el enlace solo permite
 consultar ese proyecto, sin mostrar el catálogo personal.
 
-El menú se abre y cierra con **Abrir menú / Cerrar menú**. En celular y tablet
+El menú se abre y cierra con el icono **☰**. En celular y tablet
 comienza cerrado; al elegir una sección deja libre la pantalla. En PC puedes
 ocultarlo para ampliar el contenido. El menú móvil admite teclado, Escape y cierre
-al tocar fuera. **⚙ Ajustes** abre una pantalla propia con **tu perfil (nombre o alias)**,
-**Apariencia** y **Proyecto y enlace**. El botón **Volver** y el botón Atrás del
+al tocar fuera. **⚙ Ajustes** abre una pantalla propia con **Cuenta** (alias y correo), **Apariencia** (tema y siete tamaños), **Avisos**
+(en preparación), **Seguridad** (contraseña) y **Datos** (proyectos, roles, invitaciones y enlace).
+El tema puede ser claro, oscuro o seguir el sistema y se conserva en este navegador. El botón **Volver** y el botón Atrás del
 navegador regresan al proyecto sin perder formularios pendientes de guardar.
 El nombre del proyecto y el estado de guardado siguen visibles.
-En **tu perfil → Crear o cambiar contraseña**, cada persona con sesión puede
+En **Seguridad → Cambiar contraseña**, cada persona con sesión puede
 definir su propia contraseña para volver a entrar con su correo, incluidos quienes
 aceptaron anteriormente una invitación sin haber elegido contraseña.
 
@@ -54,7 +55,7 @@ se necesita ejecutar el SQL actualizado; el servidor obtiene ese rol de la cuent
 
 Al aceptar una invitación, la persona elige un nombre o alias de 1 a 60 caracteres.
 Se guarda en su cuenta de Supabase Auth (`user_metadata.display_name`), separado de
-sus roles, correo y contraseña. En Ajustes, el alias reemplaza «Mi cuenta» y puede
+sus roles, correo y contraseña. En Ajustes → Cuenta, el alias encabeza el perfil y puede
 modificarse en **Nombre o alias → Guardar nombre**. Las cuentas anteriores pueden
 hacerlo sin una nueva invitación. El correo sigue siendo el identificador de acceso.
 

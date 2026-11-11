@@ -30,10 +30,13 @@
   const settings = document.createElement('main');
   settings.id = 'pf-settings'; settings.hidden = true; settings.tabIndex = -1;
   settings.setAttribute('aria-labelledby', 'pf-settings-title');
-  settings.innerHTML = `<header class="pf-settings-heading"><h1 id="pf-settings-title">Ajustes</h1><p>Cuenta, apariencia y opciones del proyecto.</p></header>
-    <div class="pf-settings-grid">
-    <section class="pf-settings-card pf-account-card" aria-labelledby="pf-account-heading"><div class="pf-card-heading"><span class="pf-account-avatar" aria-hidden="true">PF</span><h2 id="pf-account-heading">Cuenta</h2></div><div id="pf-account-content"></div></section>
-    <section class="pf-settings-card pf-appearance-card" aria-labelledby="pf-appearance-heading"><h2 id="pf-appearance-heading">Apariencia</h2>
+  settings.innerHTML = `<header class="pf-settings-heading"><h1 id="pf-settings-title">Ajustes</h1><p>Preferencias de cuenta y de la aplicación.</p></header>
+    <div class="pf-settings-layout"><nav class="pf-settings-nav" aria-label="Secciones de ajustes">
+      <button type="button" data-settings-section="account">Cuenta</button><button type="button" data-settings-section="appearance">Apariencia</button><button type="button" data-settings-section="notices">Avisos</button><button type="button" data-settings-section="security">Seguridad</button><button type="button" data-settings-section="data">Datos</button>
+    </nav><div class="pf-settings-panels">
+    <section id="pf-panel-account" data-settings-panel="account" class="pf-settings-card pf-account-card" aria-labelledby="pf-account-heading"><div class="pf-card-heading"><span class="pf-account-avatar" aria-hidden="true">PF</span><h2 id="pf-account-heading">Cuenta</h2></div><div id="pf-account-content"></div></section>
+    <section id="pf-panel-appearance" data-settings-panel="appearance" class="pf-settings-card pf-appearance-card" aria-labelledby="pf-appearance-heading"><h2 id="pf-appearance-heading">Apariencia</h2>
+      <fieldset class="pf-theme-options"><legend>Tema</legend><div><button type="button" data-theme="light">Claro</button><button type="button" data-theme="dark">Oscuro</button><button type="button" data-theme="system">Sistema</button></div></fieldset>
       <label class="pf-size-label" for="pf-text-size">Tamaño de letra</label><output id="pf-text-description" for="pf-text-size"></output>
       <input id="pf-text-size" type="range" min="1" max="7" step="1" value="3" aria-describedby="pf-font-help">
       <div class="pf-size-ticks" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span></div>
@@ -42,9 +45,27 @@
       <div class="pf-font-preview" aria-label="Vista previa del tamaño de letra"><span class="pf-settings-kicker">VISTA PREVIA</span><h3>Proyectos y actividades</h3><p>Consulta las actividades, revisa las fechas y sigue el avance del proyecto.</p></div>
       <button type="button" id="pf-font-reset">Restablecer tamaño</button>
     </section>
-    <section class="pf-settings-card pf-project-card" aria-labelledby="pf-project-heading"><h2 id="pf-project-heading">Proyecto y enlace</h2><div id="pf-project-content"></div></section>
-    </div>`;
+    <section id="pf-panel-notices" data-settings-panel="notices" class="pf-settings-card" aria-labelledby="pf-notices-heading"><h2 id="pf-notices-heading">Avisos</h2><p class="pf-coming-soon">En preparación</p></section>
+    <section id="pf-panel-security" data-settings-panel="security" class="pf-settings-card" aria-labelledby="pf-security-heading"><h2 id="pf-security-heading">Seguridad</h2><div id="pf-security-content"></div></section>
+    <section id="pf-panel-data" data-settings-panel="data" class="pf-settings-card" aria-labelledby="pf-data-heading"><h2 id="pf-data-heading">Datos</h2><div id="pf-project-content"></div><div id="pf-session-content"></div></section>
+    </div></div>`;
   layout.after(settings);
+  function selectSection(section) {
+    if (!['account','appearance','notices','security','data'].includes(section)) section = 'account';
+    settings.querySelectorAll('[data-settings-panel]').forEach(panel => panel.hidden = panel.dataset.settingsPanel !== section);
+    settings.querySelectorAll('[data-settings-section]').forEach(button => { button.setAttribute('aria-current', button.dataset.settingsSection === section ? 'page' : 'false'); button.setAttribute('aria-controls', 'pf-panel-' + button.dataset.settingsSection); });
+    save('settingsSection', section);
+  }
+  settings.querySelectorAll('[data-settings-section]').forEach(button => button.addEventListener('click', () => selectSection(button.dataset.settingsSection)));
+  selectSection(read('settingsSection'));
+  const systemTheme = matchMedia('(prefers-color-scheme: dark)');
+  let theme = ['light','dark','system'].includes(read('theme')) ? read('theme') : 'system';
+  function applyTheme() {
+    root.dataset.theme = theme === 'system' ? (systemTheme.matches ? 'dark' : 'light') : theme;
+    settings.querySelectorAll('[data-theme]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.theme === theme)));
+  }
+  settings.querySelectorAll('[data-theme]').forEach(button => button.addEventListener('click', () => { theme = button.dataset.theme; save('theme', theme); applyTheme(); }));
+  systemTheme.addEventListener('change', applyTheme); applyTheme();
   toolbar.querySelector('.pf-skip').addEventListener('click', event => {
     event.preventDefault();
     (settings.hidden ? main : settings).focus();

@@ -20,8 +20,8 @@ retira la lectura pública. Las preferencias de apariencia están disponibles pa
 
 1. Copia todo [supabase/setup.sql](https://raw.githubusercontent.com/uribemaxi2-gif/ProjectFlow/main/supabase/setup.sql).
 2. En Supabase abre **SQL Editor → New query**, pega y pulsa **Run**.
-3. Recarga ProjectFlow. **Ajustes → tu perfil (nombre o alias)** muestra el rol y
-   **Ajustes → Proyecto y enlace → Roles e invitaciones** permite gestionarlo.
+3. Recarga ProjectFlow. **Ajustes → Datos** muestra el rol y
+   **Ajustes → Datos → Roles e invitaciones** permite gestionarlo.
 
 Publicar la web no ejecuta el SQL remoto. Hasta ejecutarlo, se mantienen los
 permisos anteriores y la web muestra un aviso de actualización.

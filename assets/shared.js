@@ -255,10 +255,14 @@
       <button type="button" id="pf-refresh">Actualizar</button>
       <button type="button" id="pf-previous" hidden>Descargar datos anteriores</button>
       <button type="button" id="pf-open-login">Entrar a mi cuenta</button>
-      <button type="button" id="pf-set-password" hidden>Crear o cambiar contraseña</button>
+      <button type="button" id="pf-set-password" hidden>Cambiar contraseña</button>
       <button type="button" id="pf-logout" hidden>Salir</button></div>
       <p id="pf-password-feedback" role="status"></p>`;
-    find('pf-account-content').append(bar);
+    find('pf-session-content').append(bar);
+    const emailLabel = document.createElement('p'); emailLabel.className = 'pf-email-label'; emailLabel.textContent = 'Correo electrónico';
+    find('pf-account-content').append(emailLabel, find('pf-email'));
+    find('pf-security-content').append(find('pf-set-password'), find('pf-password-feedback'));
+    if (!user) { const hint = document.createElement('p'); hint.textContent = 'Inicia sesión desde Datos para cambiar tu contraseña.'; find('pf-security-content').append(hint); }
     showProfile(user); if (user) profileForm(user);
     find('pf-role').textContent = projectInfo.rolesVersion ? ProjectFlowRoles.labels[projectInfo.role] : canEdit() ? 'Edición autorizada' : 'Solo lectura';
     find('pf-email').textContent = user?.email || 'Puedes consultar sin cuenta';
@@ -399,7 +403,7 @@
         options: { shouldCreateUser: false, emailRedirectTo: projectUrl() } });
       if (error) { message('No se pudo solicitar el enlace. Revisa el correo de tu invitación y espera un minuto antes de reintentar.', true); return; }
       find('pf-password').value = '';
-      message('Revisa tu correo. Si la cuenta existe, recibirás un enlace para entrar. Después ve a Ajustes → tu perfil → Crear o cambiar contraseña.');
+      message('Revisa tu correo. Si la cuenta existe, recibirás un enlace para entrar. Después ve a Ajustes → Seguridad → Cambiar contraseña.');
     } catch { message('No se pudo solicitar el enlace. Comprueba tu conexión y vuelve a intentarlo.', true); }
     finally { find('pf-enter').disabled = false; find('pf-login-link').disabled = false; }
   });
