@@ -44,7 +44,7 @@
       <p id="pf-font-help">El tamaño se aplica a toda la web y se guarda en este navegador.</p>
       <button type="button" id="pf-font-reset">Restablecer tamaño</button>
     </section>
-    <section id="pf-panel-notices" data-settings-panel="notices" class="pf-settings-card" aria-labelledby="pf-notices-heading"><h2 id="pf-notices-heading">Avisos</h2><p class="pf-coming-soon">En preparación</p></section>
+    <section id="pf-panel-notices" data-settings-panel="notices" class="pf-settings-card" aria-labelledby="pf-notices-heading"><h2 id="pf-notices-heading">Avisos</h2><figure class="pf-coming-soon pf-franky"><figcaption>FRANKY AÚN ESTÁ TRABAJANDO ACÁ</figcaption><img src="https://i.pinimg.com/1200x/ab/1e/87/ab1e87a9f4691da8c12a43dcefc74d6b.jpg" alt="Franky — sección en preparación" loading="lazy" decoding="async" referrerpolicy="no-referrer"><p>En preparación</p></figure></section>
     <section id="pf-panel-security" data-settings-panel="security" class="pf-settings-card" aria-labelledby="pf-security-heading"><h2 id="pf-security-heading">Seguridad</h2><div id="pf-security-content"></div></section>
     <section id="pf-panel-data" data-settings-panel="data" class="pf-settings-card" aria-labelledby="pf-data-heading"><h2 id="pf-data-heading">Datos</h2><div id="pf-project-content"></div><div id="pf-session-content"></div></section>
     </div></div>`;

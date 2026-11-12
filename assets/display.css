@@ -233,3 +233,8 @@ html[data-theme="dark"] body input:autofill {
   -webkit-text-fill-color: #ececec !important;
   caret-color: #ececec;
 }
+
+.pf-franky { margin: 0; display: grid; justify-items: center; gap: 20px; text-align: center; }
+.pf-franky figcaption { font-size: 1.125rem; font-weight: 750; line-height: 1.5; }
+.pf-franky img { display: block; width: 100%; max-width: 420px; max-height: 440px; height: auto; object-fit: contain; border-radius: 12px; }
+.pf-franky p { margin: 0; }
