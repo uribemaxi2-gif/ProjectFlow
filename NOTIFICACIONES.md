@@ -25,6 +25,11 @@ a detenerse, permisos retirados o restricciones de batería pueden impedir la re
    no en archivos públicos. Se puede añadir un Database Webhook INSERT sobre
    `projectflow_push_queue` al mismo destino para acelerar los avisos; Cron asegura
    los reintentos. El envío procesa 5 eventos por ejecución y reintenta hasta 5 veces.
+   Configura el timeout HTTP en **30000 ms** si el formulario permite ajustarlo
+   (en SQL, `net.http_post` usa el argumento `timeout_milliseconds := 30000`).
+   El estado `succeeded` de Cron no garantiza una respuesta HTTP correcta: consulta
+   `net._http_response` para ver `status_code`, `error_msg` y `content`.
+   La URL debe terminar en el nombre real con que desplegaste la función.
 6. Publica `config.js` y abre Ajustes → Avisos → Activar en este dispositivo.
 
 ## Comprobar en Android
@@ -39,3 +44,11 @@ los permisos de nuevo al enviar. Las suscripciones caducadas se retiran.
 La cola almacena eventos y estado de envío; los eventos fallidos tras cinco intentos
 requieren revisar la función y restablecer attempts/next_at desde administración.
 No borres las claves VAPID ni las cambies sin volver a suscribir los dispositivos.
+
+Si la función devuelve 500, el campo `stage` permite localizar el fallo sin publicar
+secretos: `vapid_configuration` indica que las claves o el contacto VAPID no pasan
+la validación; `claim_queue` indica un fallo al consultar la cola SQL. El código
+`PGRST202` suele indicar que falta la función SQL o actualizar la caché del esquema.
+`missing_configuration` enumera únicamente los nombres de los secretos ausentes.
+Para actualizar una función creada desde el panel, reemplaza su `index.ts` por el
+código del repositorio y vuelve a desplegar **esa misma función**.
