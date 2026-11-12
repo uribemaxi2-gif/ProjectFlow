@@ -720,7 +720,7 @@ class SharedProjectTests(unittest.TestCase):
         page.locator('#pf-display-name').fill('Nombre pendiente')
         expect(page.locator('#pf-email')).to_have_text('leader@example.test')
         page.locator('[data-settings-section=notices]').click()
-        expect(page.locator('#pf-panel-notices')).to_contain_text('En preparación')
+        expect(page.locator('#pf-panel-notices')).to_contain_text('FRANKY ESTÁ TRABAJANDO')
         expect(page.locator('#pf-panel-notices input')).to_have_count(0)
         page.locator('[data-settings-section=security]').click()
         expect(page.locator('#pf-set-password')).to_be_visible()
