@@ -36,7 +36,7 @@ jobs:
       - name: Prepare site
         run: |
           mkdir -p "$RUNNER_TEMP/projectflow-site"
-          cp index.html cronograma.html proyecto.html invitacion.html config.js "$RUNNER_TEMP/projectflow-site/"
+          cp index.html cronograma.html proyecto.html invitacion.html config.js push-worker.js "$RUNNER_TEMP/projectflow-site/"
           cp -R assets "$RUNNER_TEMP/projectflow-site/assets"
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

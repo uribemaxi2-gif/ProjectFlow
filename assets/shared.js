@@ -297,6 +297,7 @@
     find('pf-logout').addEventListener('click', async () => {
       if (pending) { status('Espera a que termine el guardado antes de salir.'); return; }
       if (dirty.size && !confirm('Hay cambios sin guardar. ¿Descartarlos y salir?')) return;
+      if (window.ProjectFlowPush && window.PROJECTFLOW_CONFIG?.pushPublicKey) { try { await ProjectFlowPush.disable(); } catch { status('No se pudo desactivar el aviso de este dispositivo. Reintenta antes de salir.',true); return; } }
       const { error } = await client.auth.signOut({ scope: 'local' });
       if (error) { status('No se pudo cerrar la sesión. Vuelve a intentarlo.', true); return; }
       dirty.clear(); location.reload();

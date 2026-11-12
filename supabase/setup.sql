@@ -424,6 +424,7 @@ begin
   entry := jsonb_build_object('id',v_request_id,'title',trim(p_request->>'title'),'detail',trim(p_request->>'detail'),
     'category',coalesce(p_request->>'category','Nueva funcionalidad'),'priority',coalesce(p_request->>'priority','Media'),
     'benefit',coalesce(p_request->>'benefit',''),'module',coalesce(p_request->>'module',''),
+    'mentionId',coalesce(p_request->>'mentionId',''),
     'requestedBy',coalesce(nullif(trim(p_request->>'requestedBy'),''),public.projectflow_display_name(auth.uid()),'Consultor / QA'),
     'dueDate',coalesce(p_request->>'dueDate',''),'link',coalesce(p_request->>'link',''),
     'reviewRequired',coalesce(p_request->'reviewRequired','true'::jsonb),'status','Pendiente','decision','',

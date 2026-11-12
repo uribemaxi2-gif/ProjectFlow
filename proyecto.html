@@ -153,13 +153,14 @@ dialog{border:0;border-radius:20px;padding:0;width:min(700px,calc(100% - 28px));
 
 <dialog id="edit-dialog" aria-labelledby="dialog-title"><div class="dialog-head"><div><h2 id="dialog-title">Nuevo registro</h2><p id="dialog-subtitle">Completa los datos para guardar.</p></div><button class="dialog-close" type="button" data-close aria-label="Cerrar ventana"><svg class="icon"><use href="#ico-x"/></svg></button></div><div class="dialog-body"><form id="entry-form" data-pf-form><div id="entry-fields" class="form-grid"></div><div class="form-actions modal-actions"><button class="btn danger" id="delete-entry" data-pf-edit type="button" style="margin-right:auto;display:none"><svg class="icon sm"><use href="#ico-trash"/></svg>Eliminar</button><button class="btn" type="button" data-close>Cerrar</button><button class="btn primary" id="entry-submit" data-pf-submit type="submit"><svg class="icon sm"><use href="#ico-check"/></svg>Guardar registro</button></div></form></div></dialog>
 <div role="status" aria-live="polite" id="toast" class="toast"></div>
-<script src="config.js"></script>
+<script src="config.js?v=20261112-push"></script>
 <script src="assets/roles.js?v=20261111-settings2"></script>
 <script src="assets/profile.js?v=20261111-settings2"></script>
 <script src="assets/vendor/supabase.js"></script>
 <script src="assets/display.js?v=20261112-franky2"></script>
-<script src="assets/shared.js?v=20261111-settings2"></script>
+<script src="assets/shared.js?v=20261112-push"></script>
 <script src="assets/plan-data.js?v=20261111-settings2"></script>
+<script src="assets/notifications.js?v=20261112-push"></script>
 <script src="assets/projects.js?v=20261111-settings2"></script>
 <script src="assets/report.js?v=20261112-pdf"></script>
 <script>
@@ -276,6 +277,18 @@ function openEntry(kind,recordId='',preset={}){
  $('#dialog-title').textContent=(qaNew?'Nueva ':!ProjectFlow.canEdit()?'Detalle de ':record?'Editar ':'Nueva ')+names[kind];
  $('#dialog-subtitle').textContent=qaNew?'Envía una idea, solicitud o reporte de error. Un PM o admin gestionará su estado.':kind==='requests'?'Organiza los detalles y el estado de tu tarea.':kind==='reviews'?'Documenta la validación de un avance o entrega.':'Guarda lo decidido en una reunión o conversación.';
  $('#entry-fields').innerHTML=entryFields(kind,record||preset);
+ if(ProjectFlow.canSubmit()){
+  const mention=document.createElement('div');mention.className='form-group full';
+  mention.innerHTML='<label for="f-mentionId">Mencionar a una persona (aviso)</label><select id="f-mentionId" name="mentionId" data-pf-unavailable="true" disabled><option value="">Sin mención</option></select><small id="mention-help">Cargando participantes…</small>';
+  $('#entry-fields').append(mention);
+  const current=editing;
+  ProjectFlow.projectRpc('projectflow_mention_targets',{p_project_id:ProjectFlow.project().id}).then(people=>{
+   if(editing!==current)return;
+   const select=$('#f-mentionId');for(const person of people)select.add(new Option(person.name+' · '+(ProjectFlowRoles.labels[person.role]||person.role)+' · '+person.id.slice(0,8),person.id));
+   select.value=record?.mentionId||'';delete select.dataset.pfUnavailable;select.disabled=false;$('#mention-help').textContent='Recibirá un aviso si activó las notificaciones. Elige Sin mención y guarda antes de volver a mencionar a la misma persona.';
+  }).catch(()=>{if(editing===current)$('#mention-help').textContent='Menciones disponibles después de activar las notificaciones en Supabase.';});
+ }
+
  if(kind==='requests'||kind==='reviews'){
   const role=record?requesterRole(record):(ProjectFlowRoles.labels[ProjectFlow.project().role]||'Cargo no registrado');
   $('#entry-fields').insertAdjacentHTML('afterbegin',`<div class="form-group full creator-role"><span>Rango de quien crea el registro</span><strong id="entry-creator-role">${escapeHtml(role)}</strong><small>${record?(ProjectFlowRoles.labels[record.requestedRole]?'Rango guardado al crear; no cambia al editar.':'Este registro no guardó el rango del creador.'):'Se obtiene automáticamente de tu cuenta; no necesitas elegirlo.'}</small></div>`);

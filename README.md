@@ -19,7 +19,7 @@ El menú se abre y cierra con el icono **☰**. En celular y tablet
 comienza cerrado; al elegir una sección deja libre la pantalla. En PC puedes
 ocultarlo para ampliar el contenido. El menú móvil admite teclado, Escape y cierre
 al tocar fuera. **⚙ Ajustes** abre una pantalla propia con **Cuenta** (alias y correo), **Apariencia** (tema y siete tamaños), **Avisos**
-(en preparación), **Seguridad** (contraseña) y **Datos** (proyectos, roles, invitaciones y enlace).
+(activación por dispositivo; requiere configurar Supabase), **Seguridad** (contraseña) y **Datos** (proyectos, roles, invitaciones y enlace).
 El tema puede ser claro, oscuro o seguir el sistema y se conserva en este navegador. El botón **Volver** y el botón Atrás del
 navegador regresan al proyecto sin perder formularios pendientes de guardar.
 El nombre del proyecto y el estado de guardado siguen visibles.
@@ -151,3 +151,6 @@ Para recuperar la contraseña, abre el inicio de sesión, escribe el correo y pu
 **¿Has olvidado tu contraseña?**. El correo de Supabase devuelve a `index.html`
 y abre el formulario para elegir una contraseña nueva. Usa el mismo remitente SMTP
 y la URL de retorno que el acceso por correo; no crea cuentas ni concede permisos.
+
+Las notificaciones Web Push requieren [la configuración de servidor](NOTIFICACIONES.md).
+La clave privada VAPID y el secreto de envío nunca se publican en GitHub.

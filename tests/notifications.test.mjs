@@ -1,0 +1,40 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+test('push queue is private, detects new records and validates subscription endpoints',async()=>{
+ const db=new PGlite();
+ try{
+ const admin='10000000-0000-0000-0000-000000000001',editor='10000000-0000-0000-0000-000000000002';
+ await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;
+ create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz,encrypted_password text,raw_user_meta_data jsonb default '{}');
+ create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+ grant usage on schema public,auth to authenticated,anon;
+ insert into auth.users(id,email)values('${admin}','admin@test.com'),('${editor}','editor@test.com');`);
+ await db.exec(await readFile(new URL('../supabase/setup.sql',import.meta.url),'utf8'));
+ await db.exec(`select public.projectflow_authorize('admin@test.com','leader');select public.projectflow_authorize('editor@test.com','responsible');`);
+ const migration=await readFile(new URL('../supabase/notifications.sql',import.meta.url),'utf8');await db.exec(migration);await db.exec(migration);
+ await db.query("select set_config('request.jwt.claim.sub',$1,false)",[editor]);
+ const data={'projecthub.cliente.v1':{requests:[{id:'r1',title:'Test'}]}};
+ await db.query('update public.projectflow_state set data=$1',[JSON.stringify(data)]);
+ assert.equal((await db.query('select * from public.projectflow_push_queue')).rows.length,1);
+ await db.query('update public.projectflow_state set data=$1',[JSON.stringify(data)]);
+ assert.equal((await db.query('select * from public.projectflow_push_queue')).rows.length,1);
+ data['projecthub.cliente.v1'].requests[0].mentionId=admin;
+ await db.query('update public.projectflow_state set data=$1',[JSON.stringify(data)]);
+ assert.equal((await db.query('select * from public.projectflow_push_queue')).rows.length,2);
+ await db.exec('set role authenticated');
+ await assert.rejects(db.query('select * from public.projectflow_push_queue'));
+ await assert.rejects(db.query('select public.projectflow_claim_push()'));
+ const subscription={endpoint:'https://fcm.googleapis.com/test',keys:{p256dh:'A'.repeat(87),auth:'B'.repeat(22)}};
+ await db.query('select public.projectflow_push_subscribe($1,true)',[JSON.stringify(subscription)]);
+ await assert.rejects(db.query('select * from public.projectflow_push_subscriptions'));
+ await assert.rejects(db.query('select public.projectflow_push_subscribe($1,true)',[JSON.stringify({...subscription,endpoint:'https://localhost/test'})]));
+ await db.query('select public.projectflow_push_subscribe($1,false)',[JSON.stringify(subscription)]);
+ await db.exec('reset role');
+ assert.equal((await db.query('select * from public.projectflow_push_subscriptions')).rows.length,0);
+ await db.exec('set role service_role');
+ assert.equal((await db.query('select * from public.projectflow_claim_push()')).rows.length,2);
+ assert.equal((await db.query('select * from public.projectflow_claim_push()')).rows.length,0);
+ }finally{await db.close();}
+});

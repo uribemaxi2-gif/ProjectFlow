@@ -134,6 +134,13 @@ class Backend:
                           'email_confirmed_at': '2026-01-01T00:00:00Z', 'app_metadata': {}, 'user_metadata': self.accounts.get(email,{}).get('metadata',{})})
             return
         name = path.removeprefix('/rest/v1/rpc/')
+        if name == 'projectflow_push_subscribe':
+            self.push_enabled = body['p_enabled']
+            respond(200,None)
+            return
+        if name == 'projectflow_mention_targets':
+            respond(200,[])
+            return
         if not self.invitations_available and 'invitation' in name:
             respond(404, {'code': 'PGRST202', 'message': 'Function not installed'})
             return
@@ -720,7 +727,7 @@ class SharedProjectTests(unittest.TestCase):
         page.locator('#pf-display-name').fill('Nombre pendiente')
         expect(page.locator('#pf-email')).to_have_text('leader@example.test')
         page.locator('[data-settings-section=notices]').click()
-        expect(page.locator('#pf-panel-notices')).to_contain_text('FRANKY ESTÁ TRABAJANDO')
+        expect(page.locator('#pf-panel-notices')).to_contain_text('Recibe menciones')
         expect(page.locator('#pf-panel-notices input')).to_have_count(0)
         page.locator('[data-settings-section=security]').click()
         expect(page.locator('#pf-set-password')).to_be_visible()
@@ -779,6 +786,29 @@ class SharedProjectTests(unittest.TestCase):
         expect(expired.locator('#pf-message')).to_contain_text('caducó')
         expect(expired.locator('#pf-password-dialog')).to_have_count(0)
         self.assertNotIn('access_token',recipient.url)
+
+    def test_push_setup_enable_disable_and_missing_configuration(self):
+        page=self.page();self.login(page);self.open_settings(page)
+        page.locator('[data-settings-section=notices]').click()
+        expect(page.locator('#pf-push-enable')).to_be_disabled()
+        expect(page.locator('#pf-push-status')).to_contain_text('Falta completar')
+        enabled=self.page(mobile=True)
+        enabled.route('**/config.js*',lambda route:route.fulfill(content_type='application/javascript',body="window.PROJECTFLOW_CONFIG={supabaseUrl:'https://vhpvyebzypqikozzimmw.supabase.co',supabasePublishableKey:'sb_publishable_test',pushPublicKey:'BAAA'}"))
+        enabled.add_init_script("""
+          let subscribed=false;
+          const sub={toJSON:()=>({endpoint:'https://fcm.googleapis.com/test',keys:{p256dh:'test',auth:'test'}}),unsubscribe:async()=>{subscribed=false;return true;}};
+          const registration={pushManager:{getSubscription:async()=>subscribed?sub:null,subscribe:async()=>{subscribed=true;return sub;}}};
+          Object.defineProperty(navigator,'serviceWorker',{value:{register:async()=>registration,ready:Promise.resolve(registration)}});
+          window.PushManager=function(){};window.Notification={requestPermission:async()=> 'granted'};
+        """)
+        self.login(enabled);self.open_settings(enabled)
+        enabled.locator('[data-settings-section=notices]').click()
+        enabled.locator('#pf-push-enable').click()
+        expect(enabled.locator('#pf-push-status')).to_contain_text('quedó registrado')
+        self.assertTrue(self.backend.push_enabled)
+        enabled.locator('#pf-push-disable').click()
+        expect(enabled.locator('#pf-push-status')).to_contain_text('desactivados')
+        self.assertFalse(self.backend.push_enabled)
 
     def test_mobile_login_navigation_and_logout(self):
         page = self.page(mobile=True)
