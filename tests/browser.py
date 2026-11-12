@@ -14,6 +14,7 @@ from pathlib import Path
 import threading
 import time
 import unittest
+import subprocess
 from urllib.parse import urlparse, parse_qs
 
 from playwright.sync_api import sync_playwright, expect
@@ -633,6 +634,45 @@ class SharedProjectTests(unittest.TestCase):
         expect(page.locator('#f-assigneeId')).to_be_enabled()
         expect(page.locator('#f-assigneeId')).to_have_value('responsible@example.test')
 
+    def test_project_pdf_download_is_complete_paginated_and_readonly(self):
+        project_id=str(uuid.uuid4())
+        long_text=('Descripción extensa con acentos: información, revisión y planificación. ' * 180)+'FIN DEL TEXTO LARGO'
+        self.backend.projects[project_id]={'roles':{},'data':{
+            PROJECT:{'schema':1,'project':{'name':'Proyecto Ñandú','objective':'Objetivo único','notes':'Nota de ficha'},
+                'requests':[{'id':'req-1','title':'Solicitud de revisión','detail':long_text,'requestedBy':'José','requestedRole':'admin','assigneeId':'leader@example.test','assigneeName':'Alias anterior','priority':'Alta','status':'Pendiente','dueDate':'2026-12-20'}],
+                'reviews':[{'id':'rev-1','title':'Revisión técnica','requestId':'req-1','criteria':'Criterio único','feedback':'Resultado único','priority':'Alta'}],
+                'agreements':[{'id':'agr-1','title':'Acuerdo único','description':'Decisión acordada','nextAction':'Próximo paso único'}],
+                'activity':[{'id':'log-1','title':'Historial único','detail':'Detalle histórico','at':'2026-11-12T10:00:00Z'}]},
+            TEAM:{'schedule':[{'id':'a1','title':'Actividad única','weekId':'w1','dueDate':'2026-12-20','done':True}],'1':'Asignación histórica'},
+            PLAN:{'weeks':[{'id':'w1','title':'Semana única','objective':'Objetivo semanal','startDate':'2026-12-01','dueDate':'2026-12-20','done':False,'optional':False}]}}}
+        self.backend.accounts['leader@example.test']['metadata']['display_name']='María'
+        self.backend.data[PROJECT]={'schema':1,'project':{'name':'PROYECTO AJENO NO EXPORTAR'},'requests':[],'reviews':[],'agreements':[]}
+        page=self.page(mobile=True);page.goto(self.base+'/proyecto.html?project='+project_id)
+        expect(page.locator('#pf-role')).to_have_text('Solo lectura')
+        with page.expect_download() as result: page.locator('#footer-backup').click()
+        file=Path(result.value.path()); self.assertTrue(file.read_bytes().startswith(b'%PDF-'))
+        self.assertTrue(result.value.suggested_filename.endswith('.pdf'))
+        content=subprocess.check_output(['pdftotext','-layout',str(file),'-']).decode()
+        for value in ['Proyecto Ñandú','Objetivo único','Actividad única','Semana única','Solicitud de revisión','FIN DEL TEXTO LARGO','Revisión técnica','Criterio único','Acuerdo único','Próximo paso único','Historial único','Asignación histórica','María','Admin global']:
+            self.assertIn(value,content)
+        self.assertNotIn('PROYECTO AJENO NO EXPORTAR',content)
+        self.assertNotIn('Alias anterior',content)
+        self.assertGreater(content.count('Página '),2)
+        self.assertEqual(self.backend.saved,0)
+        result.value.save_as('/tmp/projectflow-report-sample.pdf')
+
+    def test_pdf_failure_can_retry_without_changing_project_data(self):
+        page=self.page();self.login(page,path='proyecto.html')
+        page.locator('.side-link[data-page="proyecto"]').click()
+        page.route('**/NotoSans-Regular.ttf',lambda route:route.abort())
+        page.locator('#backup-download').click()
+        expect(page.locator('#toast')).to_contain_text('No se pudo generar')
+        expect(page.locator('#backup-download')).to_be_enabled()
+        page.unroute('**/NotoSans-Regular.ttf')
+        with page.expect_download() as result:page.locator('#backup-download').click()
+        self.assertTrue(result.value.suggested_filename.endswith('.pdf'))
+        self.assertEqual(self.backend.saved,0)
+
     def test_backup_import_restores_numeric_team_keys_for_everyone(self):
         page = self.page()
         self.login(page, path='proyecto.html')
@@ -653,8 +693,9 @@ class SharedProjectTests(unittest.TestCase):
         expect(other.locator('#previous-assignment-list')).to_contain_text('Nombre recuperado')
         expect(other.locator('#agenda-dueDate-1')).to_have_value('2026-11-02')
         page.locator('.side-link[data-page="proyecto"]').click()
+        page.locator('details').filter(has=page.locator('#backup-json-download')).locator('summary').click()
         with page.expect_download() as result:
-            page.locator('#backup-download').click()
+            page.locator('#backup-json-download').click()
         exported = json.loads(Path(result.value.path()).read_text())
         self.assertEqual(exported['workspaces']['team']['1'], 'Nombre recuperado')
 

@@ -105,6 +105,14 @@ Espera la confirmación de guardado. La lectura se actualiza cada 30 segundos co
 página visible. Los editores reciben un aviso para recargar; si dos personas cambian
 la misma sección, se rechaza el guardado obsoleto para evitar sobrescrituras.
 
+**Proyecto → Ficha del proyecto → Descargar PDF** genera un documento A4 con la
+ficha, agenda, semanas, solicitudes, revisiones, acuerdos e historial del proyecto
+seleccionado. El botón al pie de la página también descarga el PDF. Incluye textos
+completos y páginas numeradas; no depende del tema ni de los filtros de pantalla.
+Se genera en el navegador con los datos cargados, sin subirlos a otro servicio.
+
+El PDF es para consultar o compartir. **Restaurar datos del proyecto (JSON)** agrupa
+la descarga e importación de la copia que permite restaurar datos en la aplicación.
 Los respaldos JSON incluyen agenda, semanas, ficha y registros del proyecto seleccionado.
 Importarlos reemplaza esos datos, sin modificar otros proyectos ni sus permisos.
 Descarga una copia antes de importar. Los respaldos antiguos siguen siendo compatibles;
@@ -125,10 +133,14 @@ npm test
 npm run test:browser
 ```
 
-Sitio estático sin compilación. El SDK de Supabase está incluido en `assets/vendor`;
-`npm run vendor` lo reproduce desde la dependencia fijada en el lockfile.
+Sitio estático sin compilación. Las bibliotecas Supabase y jsPDF están incluidas en `assets/vendor`, con sus licencias.
+`npm run vendor` las reproduce desde las dependencias fijadas en el lockfile y descarga
+la fuente Noto Sans desde una revisión fija de su repositorio oficial. En Node 24 con
+proxy, usa `NODE_USE_ENV_PROXY=1 npm run vendor`. jsPDF y la fuente solo se cargan
+cuando se solicita un PDF; la navegación habitual no descarga esos archivos.
 Las pruebas SQL usan PostgreSQL mediante PGlite. Las de navegador usan Python,
 Playwright y Chromium en `/usr/bin/chromium`, con una API de Supabase simulada.
+Las pruebas de descarga PDF usan `pdftotext` para comprobar el contenido y la paginación.
 No escriben en Supabase real ni envían correos.
 
 GitHub Pages publica únicamente las cuatro páginas HTML, `config.js` y `assets/`.

@@ -142,11 +142,12 @@ dialog{border:0;border-radius:20px;padding:0;width:min(700px,calc(100% - 28px));
     <div class="form-group"><label for="project-demo">URL de demo / resultado</label><input id="project-demo" name="demo" type="url" maxlength="500" placeholder="https://..."></div>
    </div><div class="form-actions" data-pf-edit><button type="submit" class="btn primary"><svg class="icon sm"><use href="#ico-check"/></svg>Guardar ficha</button><span class="save-hint">Los cambios se guardan al presionar este botón.</span></div></form>
    <div class="section-heading"><div><h2>Respaldo y traslado de información</h2><p>Exporta una copia completa o recupérala desde un archivo anterior.</p></div></div>
-   <section class="panel utility-box"><div><h3>Respaldo del proyecto (.json)</h3><p>Incluye la ficha, solicitudes, revisiones, acuerdos, historial, agenda personal e hitos del cronograma. Al importar se <b>reemplazan</b> los datos actuales. Conserva el archivo en un lugar seguro.</p></div><div class="utility-actions"><button class="btn" id="backup-download" type="button"><svg class="icon sm"><use href="#ico-download"/></svg>Descargar respaldo</button><button class="btn" type="button" id="backup-import-trigger" data-pf-edit><svg class="icon sm"><use href="#ico-upload"/></svg>Importar respaldo</button><input id="backup-import" data-pf-field type="file" accept=".json,application/json" hidden></div></section>
+   <section class="panel utility-box"><div><h3>Respaldo del proyecto (PDF)</h3><p>Descarga la ficha, agenda, plan semanal, solicitudes, revisiones, acuerdos e historial en un documento para leer o compartir.</p></div><div class="utility-actions"><button class="btn" id="backup-download" type="button"><svg class="icon sm"><use href="#ico-download"/></svg>Descargar PDF</button></div></section>
+   <details class="panel utility-box"><summary>Restaurar datos del proyecto (JSON)</summary><p>El PDF es para consulta. Para recuperar los datos en ProjectFlow, descarga una copia JSON. Al importar se <b>reemplazan</b> los datos actuales del proyecto.</p><div class="utility-actions"><button class="btn" id="backup-json-download" type="button">Descargar copia para restaurar (JSON)</button><button class="btn" type="button" id="backup-import-trigger" data-pf-edit>Importar copia JSON</button><input id="backup-import" data-pf-field type="file" accept=".json,application/json" hidden></div></details>
    <div class="section-heading"><div><h2>Almacenamiento y uso futuro</h2></div></div><div class="notice"><svg class="icon"><use href="#ico-info"/></svg><div><strong>Consulta con enlace y edición autorizada</strong><p>Cualquiera con el enlace puede consultar los registros. Consultor / QA puede enviar solicitudes; PM menor, PM y admin pueden gestionar los datos. Solo el admin administra los roles. La vista de lectura se actualiza automáticamente. Conserva respaldos antes de reemplazar información.</p></div></div>
   </section>
 
-  <footer class="footer"><span>ProjectFlow · Consulta con enlace · Guardado compartido</span><button type="button" id="footer-backup">Respaldar información <svg class="icon sm" style="display:inline;vertical-align:middle"><use href="#ico-download"/></svg></button></footer>
+  <footer class="footer"><span>ProjectFlow · Consulta con enlace · Guardado compartido</span><button type="button" id="footer-backup">Descargar PDF <svg class="icon sm" style="display:inline;vertical-align:middle"><use href="#ico-download"/></svg></button></footer>
  </main>
 </div>
 
@@ -160,6 +161,7 @@ dialog{border:0;border-radius:20px;padding:0;width:min(700px,calc(100% - 28px));
 <script src="assets/shared.js?v=20261111-settings2"></script>
 <script src="assets/plan-data.js?v=20261111-settings2"></script>
 <script src="assets/projects.js?v=20261111-settings2"></script>
+<script src="assets/report.js?v=20261112-pdf"></script>
 <script>
 (async()=>{'use strict';
 await ProjectFlow.ready();
@@ -362,11 +364,27 @@ async function saveProject(e){
  else{data=previous;renderAll()}
 }
 function download(text,filename,type){const blob=new Blob([text],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
-function backup(){
+let generatingPdf=false;
+async function backup(){
+ if(generatingPdf)return;
+ if(saving){toast('Espera a que termine el guardado antes de descargar.',true);return}
+ generatingPdf=true;
+ const buttons=[$('#backup-download'),$('#footer-backup')];buttons.forEach(button=>button.disabled=true);
+ toast('Preparando PDF…');
+ try{
+  const team=ProjectFlow.get('equipo14.personas',{}),info=ProjectFlow.project();
+  const agenda=team.schedule===undefined?['Definir el objetivo','Anotar requisitos y pendientes','Diseñar la solución','Desarrollar las tareas','Revisar y probar','Preparar la entrega'].map((title,i)=>({id:String(i+1),title,done:false})):ProjectFlow.normalizeSchedule(team.schedule);
+  const snapshot=JSON.parse(JSON.stringify({...data,project:{...data.project,name:info.name},agenda,weeks:ProjectFlowPlan.read(),assigneeNames:info.assigneeNames||{},roles:ProjectFlowRoles.labels,generatedAt:new Date().toISOString(),legacy:Object.entries(team).filter(([key,value])=>/^(?:person-?)?\d{1,2}$/.test(key)&&typeof value==='string')}));
+  const result=await ProjectFlowReport.create(snapshot);
+  download(result.blob,result.filename,'application/pdf');toast('PDF del proyecto descargado');
+ }catch(error){toast('No se pudo generar el PDF. Comprueba tu conexión y vuelve a intentarlo.',true)}
+ finally{generatingPdf=false;buttons.forEach(button=>button.disabled=false)}
+}
+function backupJson(){
  let filename=`respaldo_proyecto_${today()}.json`;
  const safely=(key)=>ProjectFlow.get(key,{});
  const out={...data,workspaces:{team:safely('equipo14.personas'),milestones:safely('equipo14.hitos')}};
- download(JSON.stringify(out,null,2),filename,'application/json;charset=utf-8');toast('Respaldo del sitio completo descargado')}
+ download(JSON.stringify(out,null,2),filename,'application/json;charset=utf-8');toast('Copia JSON del proyecto descargada')}
 
 function csvTextCell(value){return `"${String(value??'').replace(/"/g,'""')}"`}
 function exportRequests(){let cols=[['Título','title'],['Tipo','category'],['Prioridad','priority'],['Estado','status'],['Descripción','detail'],['Motivo','benefit'],['Módulo','module'],['Solicitado por','requestedBy'],['Rango del creador','requestedRole'],['Responsable','assigneeName'],['Fecha de solicitud','createdDate'],['Fecha objetivo','dueDate'],['Decisión','decision'],['Revisión requerida','reviewRequired']];let rows=[cols.map(x=>x[0]),...data.requests.map(r=>cols.map(([label,key])=>key==='reviewRequired'?(r.reviewRequired?'Sí':'No'):r[key]??''))];download('\ufeff'+rows.map(row=>row.map(csvTextCell).join(';')).join('\r\n'),`tareas_proyecto_${today()}.csv`,'text/csv;charset=utf-8');toast('Solicitudes exportadas a CSV')}
@@ -375,7 +393,7 @@ async function importBackup(file){
  if(file.size>10*1024*1024){toast('El archivo supera el máximo de 10 MB',true);return}
  try{
   const obj=JSON.parse(await file.text()),next=normalize(obj);
-  if(!confirm('¿Importar este respaldo en el espacio compartido? Se reemplazarán la ficha y los registros, además de la agenda y los hitos incluidos. Descarga antes un respaldo si quieres conservarlos.'))return;
+  if(!confirm('¿Importar este respaldo en el espacio compartido? Se reemplazarán la ficha y los registros, además de la agenda y los hitos incluidos. Descarga antes una copia JSON si quieres poder restaurarlos.'))return;
   const updates={[STORAGE_KEY]:next};
   const valid=x=>x&&typeof x==='object'&&!Array.isArray(x);
   if(valid(obj.workspaces?.team)){
@@ -403,7 +421,7 @@ function bind(){
  $('#edit-dialog').addEventListener('cancel',e=>{if(saving)e.preventDefault()});
  document.addEventListener('click',e=>{if(saving){e.preventDefault();return}const nav=e.target.closest('[data-page]');if(nav){go(nav.dataset.page);return}const view=e.target.closest('[data-view-kind]');if(view){openEntry(view.dataset.viewKind,view.dataset.viewId);return}const create=e.target.closest('[data-create]');if(create&&(ProjectFlow.canEdit()||ProjectFlow.canSubmit())){const kinds={solicitudes:'requests',revisiones:'reviews',acuerdos:'agreements'};openEntry(kinds[create.dataset.create]||create.dataset.create);return}const edit=e.target.closest('[data-edit-kind]');if(edit&&ProjectFlow.canEdit()){openEntry(edit.dataset.editKind,edit.dataset.editId);return}const from=e.target.closest('[data-review-from]');if(from&&ProjectFlow.canEdit()){const r=data.requests.find(x=>x.id===from.dataset.reviewFrom);if(r)openEntry('reviews','',{requestId:r.id,title:'Validación: '+r.title,criteria:r.detail||'',status:'Pendiente de revisión'});return}if(e.target.closest('[data-close]'))closeDialog()});
  for(const selector of ['#req-search','#req-filter-status','#req-filter-priority'])$(selector).addEventListener('input',renderRequests);for(const selector of ['#rev-search','#rev-filter-status'])$(selector).addEventListener('input',renderReviews);for(const selector of ['#agr-search','#agr-filter-kind'])$(selector).addEventListener('input',renderAgreements);
- $('#entry-form').addEventListener('submit',saveEntry);$('#delete-entry').addEventListener('click',deleteEntry);$('#project-form').addEventListener('submit',saveProject);$('#edit-dialog').addEventListener('close',()=>{editing=null;ProjectFlow.clean('draft:entry')});$('#backup-download').addEventListener('click',backup);$('#footer-backup').addEventListener('click',backup);$('#backup-import-trigger').addEventListener('click',()=>$('#backup-import').click());$('#backup-import').addEventListener('change',e=>importBackup(e.target.files?.[0]));$('#export-requests').addEventListener('click',exportRequests)}
+ $('#entry-form').addEventListener('submit',saveEntry);$('#delete-entry').addEventListener('click',deleteEntry);$('#project-form').addEventListener('submit',saveProject);$('#edit-dialog').addEventListener('close',()=>{editing=null;ProjectFlow.clean('draft:entry')});$('#backup-download').addEventListener('click',backup);$('#backup-json-download').addEventListener('click',backupJson);$('#footer-backup').addEventListener('click',backup);$('#backup-import-trigger').addEventListener('click',()=>$('#backup-import').click());$('#backup-import').addEventListener('change',e=>importBackup(e.target.files?.[0]));$('#export-requests').addEventListener('click',exportRequests)}
 load();bind();renderAll();fillProject();ProjectFlow.applyAccess();
 document.addEventListener('projectflow:profiles',renderAll);
 document.addEventListener('projectflow:updated',()=>{const open=editing;load();renderAll();fillProject();if(open?.recordId){if(data[open.kind].some(r=>r.id===open.recordId))openEntry(open.kind,open.recordId);else closeDialog()}});
